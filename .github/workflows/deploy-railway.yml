@@ -1,0 +1,32 @@
+name: Deploy Scavenge backend to Railway
+
+on:
+  push:
+    branches: [ infra/railway-backend ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Login to Railway (API key required)
+        env:
+          RAILWAY_API_KEY: ${{ secrets.RAILWAY_API_KEY }}
+        run: |
+          if [ -z "$RAILWAY_API_KEY" ]; then echo "RAILWAY_API_KEY secret is not set"; exit 1; fi
+          railway login --apiKey "$RAILWAY_API_KEY"
+
+      - name: Deploy backend (scavenge-backend)
+        run: |
+          cd scavenge-backend
+          # railway will create a project/service on first run; ensure start command is npm start
+          railway up --yes
