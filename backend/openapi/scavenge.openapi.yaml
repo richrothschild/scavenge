@@ -1,0 +1,733 @@
+openapi: 3.0.3
+info:
+  title: Scavenge API
+  version: 0.2.0
+  description: Runtime API contract for SCAVENGE backend MVP and live operations controls.
+servers:
+  - url: http://localhost:3001
+paths:
+  /api/health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: Service is healthy
+
+  /api/auth/join:
+    post:
+      summary: Join team as member or captain
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                joinCode:
+                  type: string
+                displayName:
+                  type: string
+                captainPin:
+                  type: string
+              required: [joinCode, displayName]
+      responses:
+        '200':
+          description: Participant session issued
+
+  /api/auth/admin/login:
+    post:
+      summary: Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                password:
+                  type: string
+              required: [password]
+      responses:
+        '200':
+          description: Admin token issued
+
+  /api/game/status:
+    get:
+      summary: Get game status
+      responses:
+        '200':
+          description: Current game status
+    post:
+      summary: Set game status (admin)
+      parameters:
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, RUNNING, PAUSED, ENDED]
+              required: [status]
+            example:
+              status: RUNNING
+      responses:
+        '200':
+          description: Updated game status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  name:
+                    type: string
+                  timezone:
+                    type: string
+              example:
+                status: RUNNING
+                name: Boyz Weekend 2026
+                timezone: America/Los_Angeles
+
+  /api/leaderboard:
+    get:
+      summary: Get leaderboard snapshot
+      responses:
+        '200':
+          description: Team rankings and progression
+
+  /api/sabotage/catalog:
+    get:
+      summary: Get sabotage catalog
+      responses:
+        '200':
+          description: Sabotage actions
+
+  /api/team/me/state:
+    get:
+      summary: Get current team state
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Team state payload
+
+  /api/team/me/event-feed:
+    get:
+      summary: Get current team event feed
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: Maximum number of team feed events to return (most recent first)
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Number of most-recent events to skip before returning items
+      responses:
+        '200':
+          description: Team event feed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamEventFeedResponse'
+              example:
+                items:
+                  - id: submission:abc123
+                    type: SUBMISSION
+                    timestamp: '2026-04-11T17:30:00.000Z'
+                    title: Submission PASS
+                    details:
+                      clueIndex: 3
+                      pointsAwarded: 120
+
+  /api/team/me/submissions:
+    get:
+      summary: Get current team submission history
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: Maximum number of submissions to return (most recent first)
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Number of most-recent submissions to skip before returning items
+      responses:
+        '200':
+          description: Submission history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TeamSubmissionsResponse'
+              example:
+                items:
+                  - id: submission-1
+                    clueIndex: 3
+                    verdict: PASS
+                    aiScore: 88
+                    reasons:
+                      - Team visible and clue requirements met
+                    pointsAwarded: 120
+                    createdAt: '2026-04-11T17:30:00.000Z'
+                    resolvedByAdmin: false
+
+  /api/team/me/scan-session:
+    post:
+      summary: Create scan session token for current clue
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Scan session token
+
+  /api/team/me/scan-validate:
+    post:
+      summary: Validate scanned checkpoint QR for current clue
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                scanSessionToken:
+                  type: string
+                checkpointPublicId:
+                  type: string
+              required: [scanSessionToken, checkpointPublicId]
+      responses:
+        '200':
+          description: Scan accepted
+
+  /api/team/me/submit:
+    post:
+      summary: Submit current clue evidence (captain-only)
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Submission verdict
+
+  /api/team/me/pass:
+    post:
+      summary: Pass current clue (captain-only, optional clues only)
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Clue passed
+
+  /api/team/me/sabotage/trigger:
+    post:
+      summary: Trigger sabotage action (captain-only)
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sabotage triggered
+
+  /api/team/me/security-events:
+    post:
+      summary: Report security event (participant)
+      parameters:
+        - in: header
+          name: x-auth-token
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Security event recorded
+
+  /api/admin/review-queue:
+    get:
+      summary: Get pending review queue
+      parameters:
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: Maximum number of pending review items to return (most recent first)
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Number of most-recent pending review items to skip before returning items
+      responses:
+        '200':
+          description: Pending review items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewQueueResponse'
+              example:
+                items:
+                  - id: review-1
+                    submissionId: submission-2
+                    teamId: spades
+                    clueIndex: 4
+                    status: PENDING
+                    createdAt: '2026-04-11T17:40:00.000Z'
+
+  /api/admin/review/{reviewId}/resolve:
+    post:
+      summary: Resolve review queue item
+      parameters:
+        - in: path
+          name: reviewId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                verdict:
+                  type: string
+                  enum: [PASS, FAIL]
+                pointsAwarded:
+                  type: integer
+              required: [verdict]
+            example:
+              verdict: PASS
+              pointsAwarded: 150
+      responses:
+        '200':
+          description: Review resolved
+          content:
+            application/json:
+              example:
+                reviewId: review-1
+                verdict: PASS
+                teamId: spades
+                currentClueIndex: 5
+                pointsAwarded: 150
+
+  /api/admin/security-events:
+    get:
+      summary: Get security events (admin)
+      parameters:
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: Maximum number of security events to return (most recent first)
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Number of most-recent security events to skip before returning items
+      responses:
+        '200':
+          description: Security events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                required: [items, total, limit, offset]
+
+  /api/admin/audit-logs:
+    get:
+      summary: Get audit logs (admin)
+      parameters:
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: limit
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+          description: Maximum number of audit logs to return (most recent first)
+        - in: query
+          name: offset
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 10000
+          description: Number of most-recent audit logs to skip before returning items
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+                required: [items, total, limit, offset]
+
+  /api/admin/team/{teamId}/deduct:
+    post:
+      summary: Deduct points from team
+      parameters:
+        - in: path
+          name: teamId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                amount:
+                  type: integer
+                reason:
+                  type: string
+              required: [amount, reason]
+            example:
+              amount: 25
+              reason: Screenshot violation
+      responses:
+        '200':
+          description: Points deducted
+          content:
+            application/json:
+              example:
+                teamId: spades
+                scoreTotal: 430
+                amount: 25
+                reason: Screenshot violation
+
+  /api/admin/team/{teamId}/reopen-clue:
+    post:
+      summary: Reopen team clue
+      parameters:
+        - in: path
+          name: teamId
+          required: true
+          schema:
+            type: string
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                clueIndex:
+                  type: integer
+                reason:
+                  type: string
+                durationSeconds:
+                  type: integer
+              required: [clueIndex, reason]
+            example:
+              clueIndex: 4
+              reason: Manual review window
+              durationSeconds: 300
+      responses:
+        '200':
+          description: Clue reopened
+          content:
+            application/json:
+              example:
+                teamId: spades
+                clueIndex: 4
+                openedByAdminUntil: '2026-04-11T17:50:00.000Z'
+
+  /api/admin/scan-sessions/invalidate:
+    post:
+      summary: Invalidate active scan sessions globally or per team
+      parameters:
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                teamId:
+                  type: string
+            example:
+              teamId: spades
+      responses:
+        '200':
+          description: Scan sessions invalidated
+          content:
+            application/json:
+              example:
+                invalidatedCount: 3
+                teamId: spades
+
+  /api/admin/clues/{clueIndex}/rotate-qr:
+    post:
+      summary: Rotate QR public ID for clue index
+      parameters:
+        - in: path
+          name: clueIndex
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: x-admin-token
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                qrPublicId:
+                  type: string
+            example:
+              qrPublicId: CLUE-5-ROTATED-2026
+      responses:
+        '200':
+          description: Clue QR id rotated
+          content:
+            application/json:
+              example:
+                clueIndex: 4
+                qrPublicId: CLUE-5-ROTATED-2026
+
+components:
+  schemas:
+    ReviewQueueItem:
+      type: object
+      properties:
+        id:
+          type: string
+        submissionId:
+          type: string
+        teamId:
+          type: string
+        clueIndex:
+          type: integer
+        status:
+          type: string
+          enum: [PENDING, RESOLVED]
+        createdAt:
+          type: string
+        resolvedAt:
+          type: string
+      required: [id, submissionId, teamId, clueIndex, status, createdAt]
+
+    ReviewQueueResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReviewQueueItem'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]
+
+    TeamEventFeedItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [SUBMISSION, SABOTAGE, SECURITY, AUDIT]
+        timestamp:
+          type: string
+        title:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+      required: [id, type, timestamp, title]
+
+    TeamEventFeedResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamEventFeedItem'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]
+
+    TeamSubmissionItem:
+      type: object
+      properties:
+        id:
+          type: string
+        clueIndex:
+          type: integer
+        verdict:
+          type: string
+          enum: [PASS, FAIL, NEEDS_REVIEW]
+        aiScore:
+          type: integer
+        reasons:
+          type: array
+          items:
+            type: string
+        pointsAwarded:
+          type: integer
+        createdAt:
+          type: string
+        resolvedByAdmin:
+          type: boolean
+        textContent:
+          type: string
+        mediaUrl:
+          type: string
+      required: [id, clueIndex, verdict, aiScore, reasons, pointsAwarded, createdAt, resolvedByAdmin]
+
+    TeamSubmissionsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TeamSubmissionItem'
+        total:
+          type: integer
+        limit:
+          type: integer
+        offset:
+          type: integer
+      required: [items, total, limit, offset]

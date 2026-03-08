@@ -11,174 +11,198 @@
   "teams": [
     {
       "name": "SPADES",
-      "join_code": "SPADES-2026",
+      "join_code": "SPADES-AJ29LN",
       "captain_name": "Lars",
-      "captain_pin": "1111"
+      "captain_pin": "910546"
     },
     {
       "name": "HEARTS",
-      "join_code": "HEARTS-2026",
+      "join_code": "HEARTS-GXQZ5F",
       "captain_name": "Carl",
-      "captain_pin": "2222"
+      "captain_pin": "609814"
     },
     {
       "name": "DIAMONDS",
-      "join_code": "DIAMONDS-2026",
+      "join_code": "DIAMONDS-4AFYXZ",
       "captain_name": "Rich",
-      "captain_pin": "3333"
+      "captain_pin": "406932"
     },
     {
       "name": "CLUBS",
-      "join_code": "CLUBS-2026",
+      "join_code": "CLUBS-D2Y7IG",
       "captain_name": "Dave",
-      "captain_pin": "4444"
+      "captain_pin": "409523"
     }
   ],
 
   "clues": [
     {
       "order_index": 1,
-      "title": "[CLUE 1 - TBD]",
-      "instructions": "[LOCATION_TBD] — Walking distance from Zephyr Hotel.",
+      "title": "Gatekeeper — Gold Rush Infrastructure",
+      "instructions": "This city did not expand — it accumulated. Stand where water once stood. Find physical evidence that the shoreline moved. Send: (1) photo of evidence, (2) name one ship permanently buried beneath San Francisco.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
       "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
+      "ai_rubric": "PASS if submission includes physical shoreline-change evidence and names a historically buried ship beneath San Francisco. Optional hint costs 1 point: 'You are looking for a seam or change in material.'",
       "base_points": 100,
       "qr_public_id": "CLUE-001"
     },
     {
       "order_index": 2,
-      "title": "[CLUE 2 - TBD]",
-      "instructions": "[LOCATION_TBD] — Walking distance.",
+      "title": "Fire Forced Order",
+      "instructions": "Twice the city burned. After that, improvisation ended. Find a nearby structure that reflects what changed. Send: (1) photo, (2) the material that became standard — and why.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
       "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
+      "ai_rubric": "PASS if submission identifies a relevant structure and explains the standard material adopted and the reason tied to post-fire rebuilding.",
       "base_points": 100,
       "qr_public_id": "CLUE-002"
     },
     {
       "order_index": 3,
-      "title": "Giants Proof",
-      "instructions": "Find something within walking distance that clearly shows the San Francisco Giants (logo, signage, apparel, or a Giants-related display). Take a photo that includes: (1) the Giants reference, (2) your full team in the frame, (3) a visible landmark so we know you're in SF.",
+      "title": "Federal Concrete",
+      "instructions": "This shoreline was redesigned when unemployment was the crisis. Identify one structure here funded by Washington, not the city. Send: (1) photo, (2) what WPA stands for.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
       "submission_type": "PHOTO",
-      "ai_rubric": "PASS if Giants reference is unambiguous AND all 4 team members are visible AND context indicates San Francisco. Score higher for creativity and clear composition.",
+      "ai_rubric": "PASS if structure is identified as federally funded and answer includes correct WPA expansion.",
       "base_points": 100,
-      "qr_public_id": "CLUE-003-GIANTS"
+      "qr_public_id": "CLUE-003"
     },
     {
       "order_index": 4,
-      "title": "[CLUE 4 - TBD]",
-      "instructions": "[LOCATION_TBD] — Walking distance.",
+      "title": "A Woman With a Ladder",
+      "instructions": "She admired firefighters enough to leave money behind. From here, identify the structure she funded and what it honors. Send: photo plus dedication purpose.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
       "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
+      "ai_rubric": "PASS if submission identifies the funded structure and clearly states what dedication it honors.",
       "base_points": 100,
       "qr_public_id": "CLUE-004"
     },
     {
       "order_index": 5,
-      "title": "49ers Proof",
-      "instructions": "Record a 10–20 second video of your team doing a 49ers-themed moment (chant, pose, or 'touchdown' celebration). In the video: (1) say the phrase 'Boyz Weekend 2026', (2) show all 4 team members, (3) include something that ties it to SF (street sign, landmark, etc.).",
+      "title": "Before Bridges",
+      "instructions": "One athletic institution here predates the Golden Gate Bridge by more than sixty years. Name it and give its founding year.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
-      "submission_type": "VIDEO",
-      "ai_rubric": "PASS if video is 10–20 seconds AND includes the spoken phrase 'Boyz Weekend 2026' AND all 4 members are visible AND 49ers theme is clear. Score higher for humor and creativity.",
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer identifies South End Rowing Club and founding year 1873.",
       "base_points": 120,
-      "qr_public_id": "CLUE-005-49ERS"
+      "qr_public_id": "CLUE-005"
     },
     {
       "order_index": 6,
-      "title": "[CLUE 6 - TBD]",
-      "instructions": "[LOCATION_TBD] — Walking distance.",
+      "title": "Strategy in Steel",
+      "instructions": "This vessel represents a wartime strategy: Build many. Build fast. Win by repetition. Identify the ship and the war.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
-      "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer identifies SS Jeremiah O'Brien and World War II.",
       "base_points": 100,
       "qr_public_id": "CLUE-006"
     },
     {
       "order_index": 7,
-      "title": "Waymo to Lombard",
-      "instructions": "Take a Waymo ride to 1083 Lombard Street, San Francisco, CA. Scan the QR code at the Lombard Street checkpoint to confirm your arrival.",
+      "title": "Silent Pacific",
+      "instructions": "Steel, narrow corridors, Pacific risk. Identify the submarine and the ocean theater.",
+      "required_flag": false,
+      "transport_mode": "WALK",
+      "requires_scan": true,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer identifies USS Pampanito and Pacific theater.",
+      "base_points": 100,
+      "qr_public_id": "CLUE-007"
+    },
+    {
+      "order_index": 8,
+      "title": "Waymo (Required)",
+      "instructions": "For a moment, remove yourselves from control. Request a Waymo from Hyde Street to 1083 Lombard Street. Inside the vehicle, send: (1) a photo, (2) complete this sentence: 'Even without a driver, San Francisco still ______.'",
       "required_flag": true,
       "transport_mode": "WAYMO",
       "requires_scan": true,
       "submission_type": "PHOTO",
-      "ai_rubric": "PASS if photo clearly shows the team at or near 1083 Lombard Street (the crooked street). All team members must be visible.",
+      "ai_rubric": "PASS if team submits in-vehicle proof and a completed sentence response.",
       "base_points": 150,
-      "qr_public_id": "CLUE-007-LOMBARD"
-    },
-    {
-      "order_index": 8,
-      "title": "[CLUE 8 - TBD]",
-      "instructions": "[LOCATION_TBD] — Near Lombard Street area.",
-      "required_flag": false,
-      "transport_mode": "WALK",
-      "requires_scan": true,
-      "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
-      "base_points": 100,
-      "qr_public_id": "CLUE-008"
+      "qr_public_id": "CLUE-008-WAYMO"
     },
     {
       "order_index": 9,
-      "title": "[CLUE 9 - TBD]",
-      "instructions": "[LOCATION_TBD] — Approaching Fisherman's Wharf / Hyde St area.",
+      "title": "Chosen Inconvenience",
+      "instructions": "This street is engineered for spectacle. This address is engineered for living. Stand at 1083 Lombard. Send a 15-second video explaining: one sacrifice, one advantage.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
-      "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
-      "base_points": 100,
+      "submission_type": "VIDEO",
+      "ai_rubric": "PASS if 15-second video includes both one sacrifice and one advantage while at 1083 Lombard.",
+      "base_points": 120,
       "qr_public_id": "CLUE-009"
     },
     {
       "order_index": 10,
-      "title": "All Aboard the Cable Car",
-      "instructions": "Board a cable car and ride to the Buena Vista Bar stop at Hyde & Beach. Scan the QR code at the cable car boarding point to confirm. Enjoy the ride — you're almost there!",
+      "title": "Democracy Saved It",
+      "instructions": "In 1947, voters chose inconvenience over efficiency. Board the Powell–Hyde cable car downhill. While moving, send a video: 'We earned the descent.' Then proceed to Buena Vista.",
       "required_flag": true,
       "transport_mode": "CABLE_CAR",
       "requires_scan": true,
-      "submission_type": "PHOTO",
-      "ai_rubric": "PASS if photo shows team on or boarding a cable car. All members visible. Bonus points for a great group shot.",
+      "submission_type": "VIDEO",
+      "ai_rubric": "PASS if team submits moving cable car video with required phrase.",
       "base_points": 150,
       "qr_public_id": "CLUE-010-CABLECAR"
     },
     {
       "order_index": 11,
-      "title": "[CLUE 11 - Buena Vista #1]",
-      "instructions": "[LOCATION_TBD] — Issued at Buena Vista Bar. Unlocks upon cable car arrival.",
+      "title": "Final Clue A — Improvisation & Geography",
+      "instructions": "Buena Vista final table round (delivered in person). In the 1960s, one San Francisco band became defined by never playing the same song the same way twice. Name the neighborhood most associated with that movement — and the band.",
       "required_flag": true,
       "transport_mode": "NONE",
       "requires_scan": false,
-      "submission_type": "PHOTO",
-      "ai_rubric": "[TBD]",
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer is Haight-Ashbury and Grateful Dead.",
       "base_points": 150,
       "qr_public_id": "CLUE-011-BV1"
     },
     {
       "order_index": 12,
-      "title": "[CLUE 12 - Buena Vista Final]",
-      "instructions": "[LOCATION_TBD] — Final clue, issued at Buena Vista Bar.",
+      "title": "Final Clue B — Succession & Shock",
+      "instructions": "Buena Vista final table round (delivered in person). In 1978, two assassinations changed San Francisco politics. Who became mayor as a result — and later served in the U.S. Senate for decades?",
       "required_flag": true,
       "transport_mode": "NONE",
       "requires_scan": false,
-      "submission_type": "VIDEO",
-      "ai_rubric": "[TBD]",
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer is Dianne Feinstein.",
       "base_points": 200,
       "qr_public_id": "CLUE-012-BV-FINAL"
+    },
+    {
+      "order_index": 13,
+      "title": "Bonus Clue C — Finish Line Round 1",
+      "instructions": "Final stretch question at the finish venue. Provide your best team answer when prompted.",
+      "required_flag": false,
+      "transport_mode": "NONE",
+      "requires_scan": false,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer matches the event host's expected response.",
+      "base_points": 120,
+      "qr_public_id": "CLUE-013-BV-BONUS1"
+    },
+    {
+      "order_index": 14,
+      "title": "Bonus Clue D — Finish Line Round 2",
+      "instructions": "Final stretch question at the finish venue. Submit your final team response.",
+      "required_flag": false,
+      "transport_mode": "NONE",
+      "requires_scan": false,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer matches the event host's expected response.",
+      "base_points": 120,
+      "qr_public_id": "CLUE-014-BV-BONUS2"
     }
   ],
 

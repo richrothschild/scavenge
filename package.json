@@ -1,0 +1,19 @@
+{
+  "name": "scavenge",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "backend",
+    "mobile",
+    "admin",
+    "shared"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev -w backend",
+    "dev:mobile": "npm run dev -w mobile",
+    "dev:admin": "npm run dev -w admin",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  }
+}

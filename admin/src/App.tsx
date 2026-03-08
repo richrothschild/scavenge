@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { io } from "socket.io-client";
+import jsQR from "jsqr";
 import { derivePaginationState, parseLimitInput, parseOffsetInput } from "./utils/pagination";
 import "./App.css";
 
@@ -110,6 +111,20 @@ function App() {
   const [submitPreviewUrl, setSubmitPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState("");
+  const [socketConnected, setSocketConnected] = useState(true);
+  // ── Sabotage store ────────────────────────────────────────────
+  const [sabotageCatalog, setSabotageCatalog] = useState<any[]>([]);
+  const [sabotageTab, setSabotageTab] = useState(false);
+  const [sabotageAction, setSabotageAction] = useState("");
+  const [sabotageTarget, setSabotageTarget] = useState("");
+  // ── QR scanner ────────────────────────────────────────────────
+  const [qrScanActive, setQrScanActive] = useState(false);
+  const [qrScanStatus, setQrScanStatus] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // ── Admin clues (for QR print) ────────────────────────────────
+  const [adminClues, setAdminClues] = useState<any[]>([]);
 
   const headers = useMemo(
     () => ({ "Content-Type": "application/json", "x-auth-token": authToken }),
@@ -236,6 +251,10 @@ function App() {
     if (!currentClue?.requires_scan) {
       return { ok: true as const };
     }
+    // Already validated via QR scanner
+    if (teamState?.clueState?.scan_validated) {
+      return { ok: true as const };
+    }
 
     const scanSessionResponse = await fetch(`${apiBase}/team/me/scan-session`, {
       method: "POST",
@@ -326,6 +345,100 @@ function App() {
     await refreshTeamState();
   };
 
+
+  const startQrScanner = async () => {
+    setQrScanActive(true);
+    setQrScanStatus("Starting camera…");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      if (!videoRef.current) return;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+      setQrScanStatus("Scanning… point at the QR code.");
+
+      qrIntervalRef.current = setInterval(() => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        if (!video || !canvas || video.readyState < 2) return;
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height);
+        if (code?.data) {
+          stopQrScanner(stream);
+          handleQrResult(code.data);
+        }
+      }, 250);
+    } catch (err) {
+      setQrScanStatus("Camera access denied. Allow camera permission and try again.");
+    }
+  };
+
+  const stopQrScanner = (stream?: MediaStream) => {
+    if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
+    const s = stream ?? (videoRef.current?.srcObject as MediaStream | null);
+    s?.getTracks().forEach(t => t.stop());
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setQrScanActive(false);
+  };
+
+  const handleQrResult = async (scannedId: string) => {
+    setQrScanStatus(`Scanned: ${scannedId} — validating…`);
+    const currentClue = teamState?.currentClue;
+    if (!currentClue?.requires_scan) {
+      setQrScanStatus("This clue does not require a scan. Proceeding.");
+      return;
+    }
+
+    const scanSessionResponse = await fetch(`${apiBase}/team/me/scan-session`, { method: "POST", headers });
+    const scanSessionPayload = await scanSessionResponse.json();
+    if (!scanSessionResponse.ok) {
+      setQrScanStatus(scanSessionPayload.error || "Failed to create scan session.");
+      return;
+    }
+
+    const validateResponse = await fetch(`${apiBase}/team/me/scan-validate`, {
+      method: "POST", headers,
+      body: JSON.stringify({ scanSessionToken: scanSessionPayload.scanSessionToken, checkpointPublicId: scannedId })
+    });
+    const validatePayload = await validateResponse.json();
+    if (!validateResponse.ok) {
+      setQrScanStatus(validatePayload.error || "QR code not valid for this clue.");
+      return;
+    }
+    setQrScanStatus("✅ Check-in confirmed! You can now submit your answer.");
+    await refreshTeamState();
+  };
+
+  const fetchAdminClues = async () => {
+    const response = await fetch(`${apiBase}/admin/clues`, { headers: { "Content-Type": "application/json", "x-admin-token": adminToken } });
+    const payload = await response.json();
+    if (response.ok) setAdminClues(payload.clues || []);
+  };
+
+  const fetchSabotageCatalog = async () => {
+    const response = await fetch(`${apiBase}/sabotage/catalog`, { headers });
+    const payload = await response.json();
+    if (response.ok) setSabotageCatalog(payload.items || []);
+  };
+
+  const triggerSabotage = async (actionId: string, targetTeamId: string) => {
+    const response = await fetch(`${apiBase}/team/me/sabotage`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ actionId, targetTeamId: targetTeamId || undefined })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Sabotage failed");
+      return;
+    }
+    setStatusMessage("Sabotage triggered!");
+    await refreshTeamState();
+  };
 
   const adminLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -625,12 +738,16 @@ function App() {
   useEffect(() => {
     if (mode !== "player" || !authToken) return;
     const sock = io(socketBase, { transports: ["websocket"], withCredentials: true });
+    sock.on("connect", () => setSocketConnected(true));
+    sock.on("disconnect", () => setSocketConnected(false));
+    sock.on("connect_error", () => setSocketConnected(false));
     sock.on("team:clue_advanced", () => {
       void refreshTeamState();
       void fetchLeaderboard();
     });
     sock.on("leaderboard:updated", () => { void fetchLeaderboard(); });
     sock.on("submission:verdict_ready", () => { void refreshTeamState(); });
+    sock.on("sabotage:triggered", () => { void refreshTeamState(); });
     return () => { sock.disconnect(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, mode]);
@@ -834,6 +951,11 @@ function App() {
           ) : (
             /* ── In-Game Screen ───────────────────────────────── */
             <div className="game-screen">
+              {/* Offline banner */}
+              {!socketConnected && (
+                <div className="offline-banner">⚠️ Reconnecting… some updates may be delayed</div>
+              )}
+
               {/* Header */}
               <header className="player-header">
                 <div className="player-header__team">
@@ -868,16 +990,20 @@ function App() {
               <div className="player-tabs">
                 <button
                   className={`player-tab${playerTab === "clue" ? " player-tab--active" : ""}`}
-                  onClick={() => setPlayerTab("clue")}
-                >🗺️ Current Clue</button>
+                  onClick={() => { setPlayerTab("clue"); setSabotageTab(false); }}
+                >🗺️ Clue</button>
                 <button
                   className={`player-tab${playerTab === "leaderboard" ? " player-tab--active" : ""}`}
-                  onClick={() => { setPlayerTab("leaderboard"); void fetchLeaderboard(); }}
+                  onClick={() => { setPlayerTab("leaderboard"); setSabotageTab(false); void fetchLeaderboard(); }}
                 >🏆 Standings</button>
+                <button
+                  className={`player-tab${sabotageTab ? " player-tab--active" : ""}`}
+                  onClick={() => { setSabotageTab(true); setPlayerTab("clue"); void fetchSabotageCatalog(); }}
+                >⚡ Sabotage</button>
               </div>
 
               {/* ── Clue tab ─────────────────────────────────── */}
-              {playerTab === "clue" && (
+              {playerTab === "clue" && !sabotageTab && (
                 <div className="clue-panel">
                   {teamState?.currentClue ? (
                     <>
@@ -901,8 +1027,34 @@ function App() {
                         <h2 className="clue-title">{teamState.currentClue.title}</h2>
                         <p className="clue-text">{teamState.currentClue.instructions}</p>
                         {teamState.currentClue.requires_scan && (
-                          <div className="scan-notice">📱 QR code check-in required at this location</div>
+                          <div className="scan-notice">
+                            📱 QR code check-in required at this location
+                            {teamState?.clueState?.scan_validated
+                              ? <span className="scan-ok"> ✅ Checked in!</span>
+                              : (
+                                <button className="btn-scan" onClick={() => { void startQrScanner(); }}>
+                                  Scan QR Code
+                                </button>
+                              )}
+                          </div>
                         )}
+
+                      {/* QR scanner modal */}
+                      {qrScanActive && (
+                        <div className="qr-overlay">
+                          <div className="qr-modal">
+                            <p className="qr-status">{qrScanStatus}</p>
+                            <video ref={videoRef} className="qr-video" playsInline muted />
+                            <canvas ref={canvasRef} style={{ display: "none" }} />
+                            <button className="btn-pass" onClick={() => stopQrScanner()}>Cancel</button>
+                          </div>
+                        </div>
+                      )}
+                      {!qrScanActive && qrScanStatus && (
+                        <div className={`scan-result ${qrScanStatus.startsWith("✅") ? "scan-result--ok" : "scan-result--err"}`}>
+                          {qrScanStatus}
+                        </div>
+                      )}
                       </div>
 
                       {/* Verdict */}
@@ -992,7 +1144,7 @@ function App() {
               )}
 
               {/* ── Leaderboard tab ──────────────────────────── */}
-              {playerTab === "leaderboard" && (
+              {playerTab === "leaderboard" && !sabotageTab && (
                 <div className="leaderboard-panel">
                   <div className="lb-heading">Live Standings</div>
                   {leaderboard.length === 0 ? (
@@ -1018,6 +1170,50 @@ function App() {
                     </div>
                   )}
                   <button className="btn-refresh" onClick={() => { void fetchLeaderboard(); }}>🔄 Refresh</button>
+                </div>
+              )}
+
+              {/* ── Sabotage tab ──────────────────────────────── */}
+              {sabotageTab && (
+                <div className="sabotage-panel">
+                  <div className="sabotage-balance">
+                    ⚡ Sabotage Bank: <strong>{(teamState?.sabotageBalance ?? 0).toLocaleString()} pts</strong>
+                  </div>
+                  {sabotageCatalog.length === 0 ? (
+                    <p className="lb-empty">Loading actions…</p>
+                  ) : (
+                    sabotageCatalog.map((action: any) => (
+                      <div key={action.id} className="sabotage-card">
+                        <div className="sabotage-name">{action.name}</div>
+                        <div className="sabotage-desc">{action.description}</div>
+                        <div className="sabotage-meta">
+                          Cost: <strong>{action.cost} pts</strong>
+                          {action.cooldown_seconds > 0 && ` · Cooldown: ${Math.ceil(action.cooldown_seconds / 60)}min`}
+                        </div>
+                        {role === "CAPTAIN" ? (
+                          <div className="sabotage-trigger">
+                            <input
+                              className="join-input"
+                              placeholder="Target team (e.g. SPADES)"
+                              value={sabotageAction === action.id ? sabotageTarget : ""}
+                              onChange={(e) => { setSabotageAction(action.id); setSabotageTarget(e.target.value); }}
+                            />
+                            <button
+                              className="btn-submit"
+                              style={{ marginTop: "0.5rem" }}
+                              onClick={() => { void triggerSabotage(action.id, sabotageAction === action.id ? sabotageTarget : ""); }}
+                              disabled={(teamState?.sabotageBalance ?? 0) < action.cost}
+                            >
+                              Launch Sabotage
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="member-notice" style={{ marginTop: "0.5rem" }}>Only captains can trigger sabotage.</div>
+                        )}
+                      </div>
+                    ))
+                  )}
+                  <button className="btn-refresh" onClick={() => { void fetchSabotageCatalog(); }}>🔄 Refresh</button>
                 </div>
               )}
             </div>
@@ -1064,6 +1260,34 @@ function App() {
                 />
                 <button type="submit">Rotate QR Public ID</button>
               </form>
+
+              <h3>QR Codes</h3>
+              <div className="panel">
+                <button onClick={() => { void fetchAdminClues(); }}>Load QR Codes</button>
+                {adminClues.length > 0 && (
+                  <button onClick={() => window.print()} style={{ marginLeft: "0.5rem" }}>🖨️ Print QR Sheet</button>
+                )}
+              </div>
+              {adminClues.length > 0 && (
+                <div className="qr-grid printable">
+                  {adminClues.map((clue: any) => (
+                    <div key={clue.index} className="qr-cell">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(clue.qr_public_id)}`}
+                        alt={clue.qr_public_id}
+                        className="qr-img"
+                      />
+                      <div className="qr-label">
+                        <strong>{clue.order_index}. {clue.title}</strong>
+                        <div style={{ fontSize: "0.7rem", color: "#888" }}>{clue.qr_public_id}</div>
+                        <div style={{ fontSize: "0.75rem" }}>
+                          {clue.required_flag ? "REQUIRED" : "optional"} · {clue.base_points}pts
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               <h3>Audit Logs</h3>
               <div className="panel filter-row">
