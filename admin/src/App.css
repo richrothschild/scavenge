@@ -1,0 +1,532 @@
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 1rem;
+  font-family: Inter, system-ui, Arial, sans-serif;
+}
+
+.status {
+  margin: 0.2rem 0;
+  color: #334155;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.tabs button {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.tabs button.active {
+  background: #0f172a;
+  color: white;
+}
+
+.panel {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+input,
+button {
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+}
+
+button {
+  cursor: pointer;
+  background: #f8fafc;
+}
+
+.json {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 0.75rem;
+  border-radius: 8px;
+  max-height: 280px;
+  overflow: auto;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0 1rem;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.list li {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.6rem;
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.admin-tabs {
+  margin-top: 0.5rem;
+}
+
+.event-log {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.5rem;
+  display: grid;
+  gap: 0.4rem;
+  max-height: 260px;
+  overflow: auto;
+}
+
+.event-row {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.45rem;
+}
+
+.event-meta {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.filter-row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.pagination-hint {
+  margin: 0;
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+/* ── Player App ─────────────────────────────────────────────── */
+.player-app {
+  min-height: 100vh;
+  background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%);
+  color: #f1f5f9;
+  font-family: Inter, system-ui, sans-serif;
+}
+
+/* Join screen */
+.join-screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  gap: 0.65rem;
+}
+.join-logo { font-size: 3.5rem; }
+.join-title {
+  font-size: 2.8rem;
+  font-weight: 900;
+  letter-spacing: 0.14em;
+  color: #f8fafc;
+  margin: 0;
+}
+.join-subtitle { color: #94a3b8; font-size: 1rem; margin: 0 0 0.4rem; }
+.countdown-banner {
+  background: rgba(168,85,247,0.18);
+  border: 1px solid #a855f7;
+  border-radius: 12px;
+  padding: 0.55rem 1.2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e9d5ff;
+}
+.game-live-banner {
+  background: rgba(34,197,94,0.15);
+  border: 1px solid #22c55e;
+  border-radius: 12px;
+  padding: 0.5rem 1.2rem;
+  color: #86efac;
+  font-weight: 700;
+  font-size: 1rem;
+}
+.game-ended-banner {
+  background: rgba(100,116,139,0.2);
+  border: 1px solid #64748b;
+  border-radius: 12px;
+  padding: 0.5rem 1.2rem;
+  color: #94a3b8;
+}
+.join-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  width: 100%;
+  max-width: 340px;
+  text-align: left;
+  margin-top: 0.4rem;
+}
+.field-label {
+  font-size: 0.73rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-top: 0.5rem;
+}
+.field-optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.join-input {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  color: #f1f5f9;
+  font-size: 1rem;
+  padding: 0.7rem 1rem;
+  width: 100%;
+  box-sizing: border-box;
+}
+.join-input:focus { outline: 2px solid #7c3aed; border-color: transparent; }
+.join-input::placeholder { color: #475569; }
+.join-btn {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: background 0.15s;
+}
+.join-btn:hover { background: #6d28d9; }
+.join-error {
+  color: #f87171;
+  background: rgba(248,113,113,0.1);
+  border-radius: 8px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.9rem;
+  max-width: 340px;
+}
+
+/* In-game screen */
+.game-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  max-width: 480px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+.player-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(255,255,255,0.05);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.player-header__team {
+  font-weight: 700;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.captain-badge {
+  font-size: 0.7rem;
+  background: rgba(251,191,36,0.2);
+  border: 1px solid #fbbf24;
+  border-radius: 20px;
+  padding: 1px 7px;
+  color: #fde68a;
+}
+.player-header__score {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #a78bfa;
+}
+
+/* Progress */
+.progress-track { padding: 0.6rem 1rem 0.25rem; }
+.progress-bar {
+  height: 7px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.progress-meta { font-size: 0.75rem; color: #94a3b8; }
+.eligible { color: #4ade80; }
+.ineligible { color: #fb923c; }
+
+/* Tab bar */
+.player-tabs {
+  display: flex;
+  padding: 0 1rem;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.player-tab {
+  background: none;
+  border: none;
+  color: #64748b;
+  font-size: 0.88rem;
+  font-weight: 600;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.player-tab--active { color: #a78bfa; border-bottom-color: #7c3aed; }
+
+/* Clue panel */
+.clue-panel {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Transport banners */
+.transport-banner {
+  border-radius: 10px;
+  padding: 0.55rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.transport--waymo  { background: rgba(239,68,68,0.15);  border: 1px solid #ef4444; color: #fca5a5; }
+.transport--cablecar { background: rgba(234,179,8,0.15);  border: 1px solid #eab308; color: #fde68a; }
+.transport--walk   { background: rgba(34,197,94,0.12);  border: 1px solid #22c55e; color: #86efac; }
+
+/* Clue card */
+.clue-card {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+}
+.clue-number {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.4rem;
+}
+.clue-required {
+  background: rgba(239,68,68,0.2);
+  border: 1px solid #ef4444;
+  border-radius: 20px;
+  padding: 1px 8px;
+  color: #fca5a5;
+  font-size: 0.65rem;
+}
+.clue-optional {
+  background: rgba(100,116,139,0.2);
+  border: 1px solid #475569;
+  border-radius: 20px;
+  padding: 1px 8px;
+  color: #94a3b8;
+  font-size: 0.65rem;
+}
+.clue-title { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin: 0 0 0.5rem; }
+.clue-text  { color: #cbd5e1; line-height: 1.65; font-size: 0.95rem; margin: 0 0 0.4rem; }
+.scan-notice {
+  font-size: 0.82rem;
+  color: #fbbf24;
+  background: rgba(251,191,36,0.1);
+  border-radius: 8px;
+  padding: 0.35rem 0.7rem;
+  margin-top: 0.4rem;
+}
+
+/* Verdict */
+.verdict-banner {
+  border-radius: 12px;
+  padding: 0.75rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+.verdict--pass        { background: rgba(34,197,94,0.15);  border: 1px solid #22c55e; color: #86efac; }
+.verdict--fail        { background: rgba(239,68,68,0.15);  border: 1px solid #ef4444; color: #fca5a5; }
+.verdict--needs-review { background: rgba(251,191,36,0.12); border: 1px solid #fbbf24; color: #fde68a; }
+.verdict-feedback { font-size: 0.85rem; font-weight: 400; margin: 0.35rem 0 0; opacity: 0.85; }
+
+/* Submit panel */
+.submit-panel {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  padding: 1rem;
+}
+.submit-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #94a3b8;
+  margin-bottom: 0.6rem;
+}
+.submit-textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 0.95rem;
+  padding: 0.6rem 0.8rem;
+  resize: none;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+}
+.submit-textarea::placeholder { color: #475569; }
+.submit-textarea:focus { outline: 2px solid #7c3aed; border-color: transparent; }
+
+/* Photo */
+.photo-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+.photo-btn {
+  display: inline-block;
+  background: rgba(124,58,237,0.18);
+  border: 1px solid #7c3aed;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  color: #c4b5fd;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.photo-btn:hover { background: rgba(124,58,237,0.3); }
+.photo-clear {
+  background: none;
+  border: 1px solid #475569;
+  border-radius: 8px;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.7rem;
+  cursor: pointer;
+}
+.photo-preview {
+  width: 100%;
+  max-height: 220px;
+  object-fit: cover;
+  border-radius: 10px;
+  margin-top: 0.5rem;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* Submit / pass buttons */
+.submit-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
+.btn-submit {
+  flex: 1;
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  min-width: 140px;
+  transition: background 0.15s;
+}
+.btn-submit:hover { background: #6d28d9; }
+.btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-pass {
+  background: rgba(100,116,139,0.15);
+  border: 1px solid #475569;
+  color: #94a3b8;
+  border-radius: 10px;
+  padding: 0.8rem 1rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-pass:hover { background: rgba(100,116,139,0.28); }
+.btn-pass:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Member notice */
+.member-notice {
+  background: rgba(100,116,139,0.1);
+  border: 1px solid rgba(100,116,139,0.25);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* Loading / refresh */
+.loading-clue { text-align: center; color: #64748b; padding: 2.5rem 1rem; }
+.btn-refresh {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  color: #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-top: 0.75rem;
+  transition: background 0.15s;
+}
+.btn-refresh:hover { background: rgba(255,255,255,0.12); }
+
+/* Leaderboard */
+.leaderboard-panel { padding: 0.75rem 1rem; }
+.lb-heading {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  color: #94a3b8;
+  margin-bottom: 0.75rem;
+}
+.lb-table { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 0.75rem; }
+.lb-row {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.65rem 0.9rem;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  font-size: 0.9rem;
+}
+.lb-row--me { background: rgba(124,58,237,0.15); border-color: #7c3aed; }
+.lb-rank  { font-size: 1rem; }
+.lb-name  { font-weight: 600; }
+.lb-clue  { color: #64748b; font-size: 0.78rem; }
+.lb-score { font-weight: 700; color: #a78bfa; text-align: right; }
+.lb-empty { color: #64748b; text-align: center; padding: 1.5rem; }
+
+@media (max-width: 400px) {
+  .join-title  { font-size: 2.2rem; }
+  .clue-title  { font-size: 1.05rem; }
+  .lb-row      { font-size: 0.82rem; }
+}

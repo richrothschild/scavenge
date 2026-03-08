@@ -44,6 +44,7 @@ type GameStatusPayload = {
   status: GameStatus;
   name: string;
   timezone: string;
+  start_time?: string;
 };
 
 type RealtimeEventItem = {
@@ -65,7 +66,6 @@ function App() {
   const [teamId, setTeamId] = useState("");
   const [teamState, setTeamState] = useState<any>(null);
   const [submitText, setSubmitText] = useState("");
-  const [currentClueRequested, setCurrentClueRequested] = useState(false);
   const [lastVerdict, setLastVerdict] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   const [lastFeedback, setLastFeedback] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
@@ -104,6 +104,12 @@ function App() {
   const [auditTeamFilter, setAuditTeamFilter] = useState("");
   const [realtimeEvents, setRealtimeEvents] = useState<RealtimeEventItem[]>([]);
   const [statusMessage, setStatusMessage] = useState("Ready");
+  // ── Player UI state ───────────────────────────────────────────
+  const [playerTab, setPlayerTab] = useState<"clue" | "leaderboard">("clue");
+  const [submitFile, setSubmitFile] = useState<File | null>(null);
+  const [submitPreviewUrl, setSubmitPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [countdown, setCountdown] = useState("");
 
   const headers = useMemo(
     () => ({ "Content-Type": "application/json", "x-auth-token": authToken }),
@@ -207,7 +213,6 @@ function App() {
     setAuthToken(payload.session.token);
     setRole(payload.session.role);
     setTeamId(payload.session.teamId);
-    setCurrentClueRequested(false);
     setLastVerdict(null);
     setLastFeedback("");
     await refreshTeamState(payload.session.token);
@@ -224,12 +229,6 @@ function App() {
       return;
     }
     setTeamState(payload);
-  };
-
-  const requestCurrentClue = async () => {
-    await refreshTeamState();
-    setCurrentClueRequested(true);
-    setStatusMessage("Current clue loaded");
   };
 
   const ensureScanValidatedForCurrentClue = async () => {
@@ -265,33 +264,49 @@ function App() {
   };
 
   const submitClue = async () => {
-    const scanResult = await ensureScanValidatedForCurrentClue();
-    if (!scanResult.ok) {
-      setStatusMessage(scanResult.error);
-      return;
-    }
+    setIsSubmitting(true);
+    try {
+      const scanResult = await ensureScanValidatedForCurrentClue();
+      if (!scanResult.ok) {
+        setStatusMessage(scanResult.error);
+        return;
+      }
 
-    const response = await fetch(`${apiBase}/team/me/submit`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ textContent: submitText })
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatusMessage(payload.error || "Submit failed");
-      return;
-    }
+      let mediaData: string | undefined;
+      if (submitFile) {
+        mediaData = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(submitFile);
+        });
+      }
 
-    const verdict = payload.verdict as "PASS" | "FAIL" | "NEEDS_REVIEW";
-    setLastVerdict(verdict);
-    const reasons = Array.isArray(payload?.ai?.reasons) ? payload.ai.reasons.join("; ") : "";
-    setLastFeedback(reasons || `Submission verdict: ${verdict}`);
-    setStatusMessage(`Submission verdict: ${verdict}`);
-    if (verdict === "PASS") {
-      setCurrentClueRequested(false);
-      setSubmitText("");
+      const response = await fetch(`${apiBase}/team/me/submit`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ textContent: submitText, mediaData })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatusMessage(payload.error || "Submit failed");
+        return;
+      }
+
+      const verdict = payload.verdict as "PASS" | "FAIL" | "NEEDS_REVIEW";
+      setLastVerdict(verdict);
+      const reasons = Array.isArray(payload?.ai?.reasons) ? payload.ai.reasons.join("; ") : "";
+      setLastFeedback(reasons || `Submission verdict: ${verdict}`);
+      setStatusMessage(`Submission verdict: ${verdict}`);
+      if (verdict === "PASS") {
+            setSubmitText("");
+        setSubmitFile(null);
+        setSubmitPreviewUrl(null);
+      }
+      await refreshTeamState();
+    } finally {
+      setIsSubmitting(false);
     }
-    await refreshTeamState();
   };
 
   const passClue = async () => {
@@ -307,24 +322,10 @@ function App() {
 
     setLastVerdict("PASS");
     setLastFeedback("Clue skipped by captain. You can now request the next clue.");
-    setCurrentClueRequested(false);
     setStatusMessage("Clue passed");
     await refreshTeamState();
   };
 
-  const sendSecurityEvent = async () => {
-    const response = await fetch(`${apiBase}/team/me/security-events`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        type: "SCREENSHOT_ATTEMPT",
-        clueIndex: teamState?.currentClueIndex ?? 0,
-        deviceInfo: "web-fallback"
-      })
-    });
-    const payload = await response.json();
-    setStatusMessage(response.ok ? `Security event logged (${payload.type})` : payload.error || "Event failed");
-  };
 
   const adminLogin = async (event: FormEvent) => {
     event.preventDefault();
@@ -590,6 +591,61 @@ function App() {
     };
   }, [adminToken, adminView, mode, realtimeEnabled]);
 
+  // ── Player: fetch game status + leaderboard on mount ─────────
+  useEffect(() => {
+    if (mode !== "player") return;
+    void fetchGameStatus();
+    void fetchLeaderboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // ── Player: countdown timer ───────────────────────────────────
+  useEffect(() => {
+    if (mode !== "player") return;
+    const getStartMs = () =>
+      gameStatus?.start_time
+        ? new Date(gameStatus.start_time).getTime()
+        : new Date("2026-04-11T17:00:00.000Z").getTime(); // 10 AM PT fallback
+
+    const tick = () => {
+      const diff = getStartMs() - Date.now();
+      if (diff <= 0) { setCountdown(""); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${d}d ${h}h ${m}m ${s}s`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [mode, gameStatus]);
+
+  // ── Player: real-time socket ──────────────────────────────────
+  useEffect(() => {
+    if (mode !== "player" || !authToken) return;
+    const sock = io(socketBase, { transports: ["websocket"], withCredentials: true });
+    sock.on("team:clue_advanced", () => {
+      void refreshTeamState();
+      void fetchLeaderboard();
+    });
+    sock.on("leaderboard:updated", () => { void fetchLeaderboard(); });
+    sock.on("submission:verdict_ready", () => { void refreshTeamState(); });
+    return () => { sock.disconnect(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, mode]);
+
+  // ── Player: auto-refresh every 30s while in game ─────────────
+  useEffect(() => {
+    if (!authToken || mode !== "player") return;
+    const id = setInterval(() => {
+      void refreshTeamState();
+      void fetchLeaderboard();
+    }, 30000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, mode]);
+
   const deductPoints = async (event: FormEvent) => {
     event.preventDefault();
     if (!deductTeamId.trim()) {
@@ -716,53 +772,257 @@ function App() {
   };
 
   return (
-    <div className="container">
-      <h1>{mode === "admin" ? "SCAVENGE Admin" : "SCAVENGE"}</h1>
+    <div className={mode === "player" ? "" : "container"}>
+      {mode === "admin" && <h1>SCAVENGE Admin</h1>}
       {mode === "admin" && <p className="status">Status: {statusMessage}</p>}
 
       {mode === "player" && (
-        <section>
-          <h2>Player Join</h2>
-          <form onSubmit={joinTeam} className="panel">
-            <input value={joinCode} onChange={(event) => setJoinCode(event.target.value)} placeholder="Join code" />
-            <input value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Display name" />
-            <input value={captainPin} onChange={(event) => setCaptainPin(event.target.value)} placeholder="Captain PIN (optional)" />
-            <button type="submit">Join Team</button>
-          </form>
+        <div className="player-app">
+          {!authToken ? (
+            /* ── Join Screen ──────────────────────────────────── */
+            <div className="join-screen">
+              <div className="join-logo">🗺️</div>
+              <h1 className="join-title">SCAVENGE</h1>
+              <p className="join-subtitle">Boyz Weekend 2026 · San Francisco</p>
 
-          <div className="panel">
-            <p>Team: {teamId || "-"}</p>
-            <p>Role: {role || "-"}</p>
-            <p>Progress: {teamState?.completedCount ?? 0} completed / {teamState?.skippedCount ?? 0} skipped</p>
-            <p>Eligibility: {(teamState?.completedCount ?? 0) >= 9 ? "ELIGIBLE" : "INELIGIBLE (need 9 solved clues)"}</p>
-            <button onClick={() => { void requestCurrentClue(); }} disabled={!authToken}>Request Current Clue</button>
-            <button onClick={() => { void refreshTeamState(); }} disabled={!authToken}>Refresh Team State</button>
-            {currentClueRequested && teamState?.currentClue ? (
-              <div className="panel">
-                <p><strong>Clue {teamState.currentClueIndex + 1}</strong>: {teamState.currentClue.title}</p>
-                <p>{teamState.currentClue.instructions}</p>
-                <p>Submission type: {teamState.currentClue.submission_type}</p>
-                <p>Requires scan: {teamState.currentClue.requires_scan ? "Yes" : "No"}</p>
+              {gameStatus?.status === "PENDING" && countdown && (
+                <div className="countdown-banner">⏳ Hunt starts in {countdown}</div>
+              )}
+              {gameStatus?.status === "RUNNING" && (
+                <div className="game-live-banner">🟢 Hunt is LIVE — get moving!</div>
+              )}
+              {gameStatus?.status === "ENDED" && (
+                <div className="game-ended-banner">🏁 Hunt has ended</div>
+              )}
+
+              <form onSubmit={joinTeam} className="join-form">
+                <label className="field-label">Team code</label>
+                <input
+                  className="join-input"
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value)}
+                  placeholder="e.g. SPADES-AJ29LN"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                />
+                <label className="field-label">Your name</label>
+                <input
+                  className="join-input"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="First name"
+                />
+                <label className="field-label">
+                  Captain PIN <span className="field-optional">(captains only — leave blank if member)</span>
+                </label>
+                <input
+                  className="join-input"
+                  type="password"
+                  inputMode="numeric"
+                  value={captainPin}
+                  onChange={(e) => setCaptainPin(e.target.value)}
+                  placeholder="6-digit PIN"
+                />
+                <button className="join-btn" type="submit">Join Hunt →</button>
+              </form>
+
+              {statusMessage && statusMessage !== "Ready" && (
+                <p className="join-error">{statusMessage}</p>
+              )}
+            </div>
+          ) : (
+            /* ── In-Game Screen ───────────────────────────────── */
+            <div className="game-screen">
+              {/* Header */}
+              <header className="player-header">
+                <div className="player-header__team">
+                  Team {(teamState?.teamName ?? teamId).toUpperCase()}
+                  {role === "CAPTAIN" && <span className="captain-badge">👑 Captain</span>}
+                </div>
+                <div className="player-header__score">
+                  {(teamState?.scoreTotal ?? 0).toLocaleString()} pts
+                </div>
+              </header>
+
+              {/* Progress bar */}
+              <div className="progress-track">
+                <div className="progress-bar">
+                  <div
+                    className="progress-fill"
+                    style={{ width: `${Math.min(100, ((teamState?.completedCount ?? 0) / 14) * 100)}%` }}
+                  />
+                </div>
+                <div className="progress-meta">
+                  Clue {(teamState?.currentClueIndex ?? 0) + 1} of 14
+                  &nbsp;·&nbsp; {teamState?.completedCount ?? 0} solved
+                  &nbsp;·&nbsp; {teamState?.skippedCount ?? 0} skipped
+                  &nbsp;·&nbsp;
+                  <span className={(teamState?.completedCount ?? 0) >= 9 ? "eligible" : "ineligible"}>
+                    {(teamState?.completedCount ?? 0) >= 9 ? "✅ Eligible" : "⚠️ Need 9 to qualify"}
+                  </span>
+                </div>
               </div>
-            ) : null}
 
-            {role === "CAPTAIN" ? (
-              <>
-                <input value={submitText} onChange={(event) => setSubmitText(event.target.value)} placeholder="Answer / submission text" />
-                <button onClick={() => { void submitClue(); }} disabled={!currentClueRequested || !submitText.trim()}>Submit Answer</button>
-                <button onClick={() => { void passClue(); }} disabled={!currentClueRequested}>Skip Clue (Captain)</button>
-              </>
-            ) : (
-              <p>Only team captains can submit answers or skip clues.</p>
-            )}
+              {/* Tab bar */}
+              <div className="player-tabs">
+                <button
+                  className={`player-tab${playerTab === "clue" ? " player-tab--active" : ""}`}
+                  onClick={() => setPlayerTab("clue")}
+                >🗺️ Current Clue</button>
+                <button
+                  className={`player-tab${playerTab === "leaderboard" ? " player-tab--active" : ""}`}
+                  onClick={() => { setPlayerTab("leaderboard"); void fetchLeaderboard(); }}
+                >🏆 Standings</button>
+              </div>
 
-            {lastVerdict ? <p>Last verdict: {lastVerdict}</p> : null}
-            {lastFeedback ? <p>Feedback: {lastFeedback}</p> : null}
-            <button onClick={sendSecurityEvent}>Report Screenshot Attempt</button>
-          </div>
+              {/* ── Clue tab ─────────────────────────────────── */}
+              {playerTab === "clue" && (
+                <div className="clue-panel">
+                  {teamState?.currentClue ? (
+                    <>
+                      {teamState.currentClue.transport_mode === "WAYMO" && (
+                        <div className="transport-banner transport--waymo">🚗 Waymo required to reach this clue</div>
+                      )}
+                      {teamState.currentClue.transport_mode === "CABLE_CAR" && (
+                        <div className="transport-banner transport--cablecar">🚃 Cable car required to reach this clue</div>
+                      )}
+                      {teamState.currentClue.transport_mode === "WALK" && (
+                        <div className="transport-banner transport--walk">🚶 Walk to this location</div>
+                      )}
 
-          <pre className="json">{JSON.stringify(teamState, null, 2)}</pre>
-        </section>
+                      <div className="clue-card">
+                        <div className="clue-number">
+                          Clue {(teamState.currentClueIndex ?? 0) + 1}
+                          {teamState.currentClue.required_flag
+                            ? <span className="clue-required">REQUIRED</span>
+                            : <span className="clue-optional">optional</span>}
+                        </div>
+                        <h2 className="clue-title">{teamState.currentClue.title}</h2>
+                        <p className="clue-text">{teamState.currentClue.instructions}</p>
+                        {teamState.currentClue.requires_scan && (
+                          <div className="scan-notice">📱 QR code check-in required at this location</div>
+                        )}
+                      </div>
+
+                      {/* Verdict */}
+                      {lastVerdict && (
+                        <div className={`verdict-banner verdict--${lastVerdict === "NEEDS_REVIEW" ? "needs-review" : lastVerdict.toLowerCase()}`}>
+                          {lastVerdict === "PASS" && "✅ Correct! Great work — moving to the next clue."}
+                          {lastVerdict === "FAIL" && "❌ Not quite — check the feedback below and try again."}
+                          {lastVerdict === "NEEDS_REVIEW" && "⏳ Submitted for admin review. Stand by!"}
+                          {lastFeedback && <p className="verdict-feedback">{lastFeedback}</p>}
+                        </div>
+                      )}
+
+                      {/* Captain submit */}
+                      {role === "CAPTAIN" ? (
+                        <div className="submit-panel">
+                          <div className="submit-heading">Submit your answer</div>
+                          <textarea
+                            className="submit-textarea"
+                            value={submitText}
+                            onChange={(e) => setSubmitText(e.target.value)}
+                            placeholder="Describe what you found or did…"
+                            rows={3}
+                          />
+                          <div className="photo-row">
+                            <label className="photo-btn">
+                              📷 {submitFile ? "Change photo/video" : "Add photo or video"}
+                              <input
+                                type="file"
+                                accept="image/*,video/*"
+                                capture="environment"
+                                style={{ display: "none" }}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] ?? null;
+                                  setSubmitFile(file);
+                                  if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
+                                  setSubmitPreviewUrl(file ? URL.createObjectURL(file) : null);
+                                }}
+                              />
+                            </label>
+                            {submitFile && (
+                              <button
+                                className="photo-clear"
+                                type="button"
+                                onClick={() => {
+                                  if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
+                                  setSubmitFile(null);
+                                  setSubmitPreviewUrl(null);
+                                }}
+                              >✕ Remove</button>
+                            )}
+                          </div>
+                          {submitPreviewUrl && (
+                            <img src={submitPreviewUrl} alt="Preview" className="photo-preview" />
+                          )}
+                          <div className="submit-actions">
+                            <button
+                              className="btn-submit"
+                              onClick={() => { void submitClue(); }}
+                              disabled={isSubmitting || (!submitText.trim() && !submitFile)}
+                            >
+                              {isSubmitting ? "Submitting…" : "Submit Answer ✓"}
+                            </button>
+                            {!teamState.currentClue.required_flag && (
+                              <button
+                                className="btn-pass"
+                                onClick={() => { void passClue(); }}
+                                disabled={isSubmitting}
+                              >Skip this clue</button>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="member-notice">
+                          Only your team captain can submit answers or skip clues.
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="loading-clue">
+                      <p>Loading your clue…</p>
+                      <button className="btn-refresh" onClick={() => { void refreshTeamState(); }}>
+                        🔄 Tap to load
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Leaderboard tab ──────────────────────────── */}
+              {playerTab === "leaderboard" && (
+                <div className="leaderboard-panel">
+                  <div className="lb-heading">Live Standings</div>
+                  {leaderboard.length === 0 ? (
+                    <p className="lb-empty">Loading standings…</p>
+                  ) : (
+                    <div className="lb-table">
+                      {leaderboard
+                        .slice()
+                        .sort((a, b) => b.scoreTotal - a.scoreTotal)
+                        .map((team, i) => (
+                          <div
+                            key={team.teamId}
+                            className={`lb-row${team.teamId === teamId ? " lb-row--me" : ""}`}
+                          >
+                            <span className="lb-rank">
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `#${i + 1}`}
+                            </span>
+                            <span className="lb-name">{team.teamName}</span>
+                            <span className="lb-clue">Clue {team.currentClueIndex + 1}</span>
+                            <span className="lb-score">{team.scoreTotal.toLocaleString()} pts</span>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                  <button className="btn-refresh" onClick={() => { void fetchLeaderboard(); }}>🔄 Refresh</button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {mode === "admin" && (
