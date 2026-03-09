@@ -117,9 +117,10 @@ button {
 }
 
 /* ── Player App ─────────────────────────────────────────────── */
+/* SF palette: Giants orange #F2552C · Bay blue #003087 */
 .player-app {
   min-height: 100vh;
-  background: linear-gradient(160deg, #0f172a 0%, #1e1b4b 60%, #0f172a 100%);
+  background: linear-gradient(160deg, #001a4d 0%, #002470 55%, #001229 100%);
   color: #f1f5f9;
   font-family: Inter, system-ui, sans-serif;
 }
@@ -145,13 +146,13 @@ button {
 }
 .join-subtitle { color: #94a3b8; font-size: 1rem; margin: 0 0 0.4rem; }
 .countdown-banner {
-  background: rgba(168,85,247,0.18);
-  border: 1px solid #a855f7;
+  background: rgba(242,85,44,0.18);
+  border: 1px solid #F2552C;
   border-radius: 12px;
   padding: 0.55rem 1.2rem;
   font-size: 1rem;
   font-weight: 600;
-  color: #e9d5ff;
+  color: #ffcbb8;
 }
 .game-live-banner {
   background: rgba(34,197,94,0.15);
@@ -197,10 +198,10 @@ button {
   width: 100%;
   box-sizing: border-box;
 }
-.join-input:focus { outline: 2px solid #7c3aed; border-color: transparent; }
+.join-input:focus { outline: 2px solid #F2552C; border-color: transparent; }
 .join-input::placeholder { color: #475569; }
 .join-btn {
-  background: #7c3aed;
+  background: #F2552C;
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -211,7 +212,7 @@ button {
   margin-top: 0.75rem;
   transition: background 0.15s;
 }
-.join-btn:hover { background: #6d28d9; }
+.join-btn:hover { background: #d44424; }
 .join-error {
   color: #f87171;
   background: rgba(248,113,113,0.1);
@@ -235,8 +236,8 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1rem;
-  background: rgba(255,255,255,0.05);
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+  background: #003087;
+  border-bottom: 3px solid #F2552C;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -259,7 +260,7 @@ button {
 .player-header__score {
   font-size: 1.1rem;
   font-weight: 800;
-  color: #a78bfa;
+  color: #F2552C;
 }
 
 /* Progress */
@@ -273,7 +274,7 @@ button {
 }
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+  background: linear-gradient(90deg, #003087, #F2552C);
   border-radius: 4px;
   transition: width 0.5s ease;
 }
@@ -298,7 +299,7 @@ button {
   border-bottom: 3px solid transparent;
   transition: color 0.15s, border-color 0.15s;
 }
-.player-tab--active { color: #a78bfa; border-bottom-color: #7c3aed; }
+.player-tab--active { color: #F2552C; border-bottom-color: #F2552C; }
 
 /* Clue panel */
 .clue-panel {
@@ -323,6 +324,7 @@ button {
 .clue-card {
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
+  border-left: 4px solid #F2552C;
   border-radius: 14px;
   padding: 1rem 1.1rem;
 }
@@ -405,23 +407,23 @@ button {
   line-height: 1.5;
 }
 .submit-textarea::placeholder { color: #475569; }
-.submit-textarea:focus { outline: 2px solid #7c3aed; border-color: transparent; }
+.submit-textarea:focus { outline: 2px solid #003087; border-color: transparent; }
 
 /* Photo */
 .photo-row { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
 .photo-btn {
   display: inline-block;
-  background: rgba(124,58,237,0.18);
-  border: 1px solid #7c3aed;
+  background: rgba(0,48,135,0.35);
+  border: 1px solid #003087;
   border-radius: 8px;
   padding: 0.45rem 0.9rem;
   font-size: 0.85rem;
-  color: #c4b5fd;
+  color: #93b4e8;
   cursor: pointer;
   font-weight: 600;
   transition: background 0.15s;
 }
-.photo-btn:hover { background: rgba(124,58,237,0.3); }
+.photo-btn:hover { background: rgba(0,48,135,0.55); }
 .photo-clear {
   background: none;
   border: 1px solid #475569;
@@ -444,7 +446,7 @@ button {
 .submit-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap; }
 .btn-submit {
   flex: 1;
-  background: #7c3aed;
+  background: #003087;
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -455,7 +457,7 @@ button {
   min-width: 140px;
   transition: background 0.15s;
 }
-.btn-submit:hover { background: #6d28d9; }
+.btn-submit:hover { background: #00246a; }
 .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .btn-pass {
   background: rgba(100,116,139,0.15);
@@ -518,11 +520,11 @@ button {
   border-radius: 10px;
   font-size: 0.9rem;
 }
-.lb-row--me { background: rgba(124,58,237,0.15); border-color: #7c3aed; }
+.lb-row--me { background: rgba(242,85,44,0.12); border-color: #F2552C; }
 .lb-rank  { font-size: 1rem; }
 .lb-name  { font-weight: 600; }
 .lb-clue  { color: #64748b; font-size: 0.78rem; }
-.lb-score { font-weight: 700; color: #a78bfa; text-align: right; }
+.lb-score { font-weight: 700; color: #F2552C; text-align: right; }
 .lb-empty { color: #64748b; text-align: center; padding: 1.5rem; }
 
 /* ── Offline / reconnecting banner ──────────────────────── */
@@ -540,7 +542,7 @@ button {
   display: block;
   margin-top: 0.6rem;
   padding: 0.6rem 1.2rem;
-  background: #7c3aed;
+  background: #F2552C;
   color: #fff;
   border: none;
   border-radius: 8px;
@@ -589,11 +591,11 @@ button {
 /* ── Sabotage panel ─────────────────────────────────────── */
 .sabotage-panel { padding: 0.75rem 1rem; }
 .sabotage-balance {
-  background: rgba(124,58,237,0.15);
-  border: 1px solid #7c3aed;
+  background: rgba(242,85,44,0.12);
+  border: 1px solid #F2552C;
   border-radius: 10px;
   padding: 0.75rem 1rem;
-  color: #a78bfa;
+  color: #ffcbb8;
   font-size: 0.95rem;
   margin-bottom: 1rem;
   text-align: center;
