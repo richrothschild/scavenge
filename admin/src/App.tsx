@@ -5,6 +5,14 @@ import jsQR from "jsqr";
 import { derivePaginationState, parseLimitInput, parseOffsetInput } from "./utils/pagination";
 import "./App.css";
 
+const TEAM_THEMES = {
+  SPADES:   { suit: "♠", accent: "#818cf8", mascot: "⛓️",  fullName: "Alcatraz Aces",        landmark: "Alcatraz Island",   tagline: "Escaped from Alcatraz — and winning this hunt" },
+  HEARTS:   { suit: "♥", accent: "#f87171", mascot: "🌉",  fullName: "Golden Gate Hearts",    landmark: "Golden Gate Bridge",tagline: "Crossing the bridge to victory"                 },
+  DIAMONDS: { suit: "♦", accent: "#fbbf24", mascot: "🚃",  fullName: "Cable Car Diamonds",    landmark: "SF Cable Cars",     tagline: "All aboard the winning line"                    },
+  CLUBS:    { suit: "♣", accent: "#4ade80", mascot: "🌿",  fullName: "Haight Clovers",        landmark: "Haight-Ashbury",    tagline: "Peace, love, and first place"                   },
+} as const;
+type TeamSuit = keyof typeof TEAM_THEMES;
+
 type Role = "CAPTAIN" | "MEMBER";
 
 const apiBase =
@@ -126,6 +134,14 @@ function App() {
   const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // ── Admin clues (for QR print) ────────────────────────────────
   const [adminClues, setAdminClues] = useState<any[]>([]);
+  // ── Verdict reveal overlay ────────────────────────────────────
+  const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
+  // ── Welcome screen ────────────────────────────────────────────
+  const [showWelcome, setShowWelcome] = useState(false);
+  // ── Toast notifications ───────────────────────────────────────
+  const [toasts, setToasts] = useState<Array<{ id: string; type: "success" | "error" | "info"; msg: string }>>([]);
+  // ── Clue elapsed timer ────────────────────────────────────────
+  const [clueElapsed, setClueElapsed] = useState("");
 
   const headers = useMemo(
     () => ({ "Content-Type": "application/json", "x-auth-token": authToken }),
@@ -210,6 +226,24 @@ function App() {
     setRealtimeEvents((previous) => [item, ...previous].slice(0, 30));
   };
 
+  const haptic = (pattern: number | number[] = 50) => {
+    if ("vibrate" in navigator) navigator.vibrate(pattern);
+  };
+
+  const addToast = (type: "success" | "error" | "info", msg: string) => {
+    const id = `${Date.now()}-${Math.random()}`;
+    setToasts(prev => [...prev, { id, type, msg }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  };
+
+  const getTeamTheme = () => {
+    const src = (teamState?.teamName ?? joinCode ?? "").toUpperCase();
+    for (const key of Object.keys(TEAM_THEMES) as TeamSuit[]) {
+      if (src.includes(key)) return { ...TEAM_THEMES[key], key };
+    }
+    return null;
+  };
+
   const joinTeam = async (event: FormEvent) => {
     event.preventDefault();
     const response = await fetch(`${apiBase}/auth/join`, {
@@ -231,6 +265,7 @@ function App() {
     setTeamId(payload.session.teamId);
     setLastVerdict(null);
     setLastFeedback("");
+    setShowWelcome(true);
     await refreshTeamState(payload.session.token);
     setStatusMessage(`Joined as ${payload.session.role}`);
   };
@@ -318,8 +353,16 @@ function App() {
       const reasons = Array.isArray(payload?.ai?.reasons) ? payload.ai.reasons.join("; ") : "";
       setLastFeedback(reasons || `Submission verdict: ${verdict}`);
       setStatusMessage(`Submission verdict: ${verdict}`);
+      // Verdict reveal + haptic + toast
+      setVerdictReveal(verdict);
+      haptic(verdict === "PASS" ? [100, 50, 150] : verdict === "FAIL" ? [200] : [50]);
+      addToast(
+        verdict === "PASS" ? "success" : verdict === "FAIL" ? "error" : "info",
+        verdict === "PASS" ? "Correct! Moving to next clue." : verdict === "FAIL" ? "Not quite — check the feedback." : "Submitted for admin review."
+      );
+      setTimeout(() => setVerdictReveal(null), verdict === "PASS" ? 3200 : 2500);
       if (verdict === "PASS") {
-            setSubmitText("");
+        setSubmitText("");
         setSubmitFile(null);
         setSubmitPreviewUrl(null);
       }
@@ -764,6 +807,40 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, mode]);
 
+  // ── Player: clue elapsed timer ────────────────────────────────
+  useEffect(() => {
+    if (!authToken || mode !== "player") return;
+    const clueIdx = teamState?.currentClueIndex;
+    if (clueIdx === undefined || clueIdx === null) return;
+    const key = `scavenge_clue_start_${clueIdx}`;
+    if (!localStorage.getItem(key)) localStorage.setItem(key, String(Date.now()));
+    const startMs = Number(localStorage.getItem(key));
+    const tick = () => {
+      const elapsed = Date.now() - startMs;
+      const m = Math.floor(elapsed / 60000);
+      const s = Math.floor((elapsed % 60000) / 1000);
+      setClueElapsed(`${m}:${s.toString().padStart(2, "0")}`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken, mode, teamState?.currentClueIndex]);
+
+  // ── Player: cache current clue offline ───────────────────────
+  useEffect(() => {
+    if (teamState?.currentClue) {
+      localStorage.setItem("scavenge_cached_clue", JSON.stringify(teamState.currentClue));
+    }
+  }, [teamState?.currentClue]);
+
+  // ── Auto-dismiss welcome after 5s ────────────────────────────
+  useEffect(() => {
+    if (!showWelcome) return;
+    const id = setTimeout(() => setShowWelcome(false), 5000);
+    return () => clearTimeout(id);
+  }, [showWelcome]);
+
   const deductPoints = async (event: FormEvent) => {
     event.preventDefault();
     if (!deductTeamId.trim()) {
@@ -960,7 +1037,7 @@ function App() {
               {/* Header */}
               <header className="player-header">
                 <div className="player-header__team">
-                  Team {(teamState?.teamName ?? teamId).toUpperCase()}
+                  {(() => { const th = getTeamTheme(); return th ? `${th.suit} ${th.fullName}` : `Team ${(teamState?.teamName ?? teamId).toUpperCase()}`; })()}
                   {role === "CAPTAIN" && <span className="captain-badge">👑 Captain</span>}
                 </div>
                 <div className="player-header__score">
@@ -980,6 +1057,7 @@ function App() {
                   Clue {(teamState?.currentClueIndex ?? 0) + 1} of 14
                   &nbsp;·&nbsp; {teamState?.completedCount ?? 0} solved
                   &nbsp;·&nbsp; {teamState?.skippedCount ?? 0} skipped
+                  {clueElapsed && <>&nbsp;·&nbsp; ⏱ {clueElapsed}</>}
                   &nbsp;·&nbsp;
                   <span className={(teamState?.completedCount ?? 0) >= 9 ? "eligible" : "ineligible"}>
                     {(teamState?.completedCount ?? 0) >= 9 ? "✅ Eligible" : "⚠️ Need 9 to qualify"}
@@ -1045,7 +1123,13 @@ function App() {
                         <div className="qr-overlay">
                           <div className="qr-modal">
                             <p className="qr-status">{qrScanStatus}</p>
-                            <video ref={videoRef} className="qr-video" playsInline muted />
+                            <div className="qr-video-wrap">
+                              <video ref={videoRef} className="qr-video" playsInline muted />
+                              <div className="qr-viewfinder">
+                                <span className="qvf qvf-tl" /><span className="qvf qvf-tr" />
+                                <span className="qvf qvf-bl" /><span className="qvf qvf-br" />
+                              </div>
+                            </div>
                             <canvas ref={canvasRef} style={{ display: "none" }} />
                             <button className="btn-pass" onClick={() => stopQrScanner()}>Cancel</button>
                           </div>
@@ -1339,6 +1423,55 @@ function App() {
                   </>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* ── Verdict reveal overlay ──────────────────────── */}
+          {verdictReveal && (
+            <div className={`verdict-reveal-overlay verdict-reveal-overlay--${verdictReveal === "NEEDS_REVIEW" ? "review" : verdictReveal.toLowerCase()}`}>
+              <div className="verdict-reveal-card">
+                <div className="verdict-reveal-icon">
+                  {verdictReveal === "PASS" && "🎉"}
+                  {verdictReveal === "FAIL" && "💥"}
+                  {verdictReveal === "NEEDS_REVIEW" && "⏳"}
+                </div>
+                <div className="verdict-reveal-label">
+                  {verdictReveal === "PASS" && "CORRECT!"}
+                  {verdictReveal === "FAIL" && "NOT QUITE"}
+                  {verdictReveal === "NEEDS_REVIEW" && "UNDER REVIEW"}
+                </div>
+                <div className="verdict-reveal-sub">
+                  {verdictReveal === "PASS" && "Moving to the next clue…"}
+                  {verdictReveal === "FAIL" && "Check the feedback and try again"}
+                  {verdictReveal === "NEEDS_REVIEW" && "The Dictator is reviewing your submission"}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── Welcome screen overlay ───────────────────────── */}
+          {showWelcome && (() => {
+            const th = getTeamTheme();
+            return (
+              <div className="welcome-overlay" onClick={() => setShowWelcome(false)}>
+                <div className="welcome-card" onClick={e => e.stopPropagation()}>
+                  <div className="welcome-mascot">{th?.mascot ?? "🗺️"}</div>
+                  <div className="welcome-suit">{th?.suit}</div>
+                  <div className="welcome-team">{th?.fullName ?? (teamState?.teamName ?? joinCode.split("-")[0]).toUpperCase()}</div>
+                  <div className="welcome-landmark">{th?.landmark}</div>
+                  <div className="welcome-tagline">"{th?.tagline ?? "Let the hunt begin!"}"</div>
+                  <button className="join-btn welcome-go-btn" onClick={() => setShowWelcome(false)}>Let's Go! →</button>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Toast container ──────────────────────────────── */}
+          {toasts.length > 0 && (
+            <div className="toast-container">
+              {toasts.map(t => (
+                <div key={t.id} className={`toast toast--${t.type}`}>{t.msg}</div>
+              ))}
             </div>
           )}
 
