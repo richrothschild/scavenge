@@ -1,7 +1,6 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# Copy only what's needed to build the admin SPA
 COPY package.json package-lock.json ./
 COPY admin/package.json ./admin/
 COPY shared/package.json ./shared/
@@ -13,10 +12,19 @@ COPY admin/ ./admin/
 
 RUN npm run build -w admin
 
-FROM node:20-alpine
-WORKDIR /app
-RUN npm install -g serve
+FROM nginx:alpine
+COPY --from=build /app/admin/dist /usr/share/nginx/html
 
-COPY --from=build /app/admin/dist ./dist
-EXPOSE 3000
-CMD ["sh", "-c", "serve -s dist -l ${PORT:-3000}"]
+# SPA routing: unknown paths fall back to index.html
+# PORT is injected by Railway; default to 80
+RUN printf 'server {\n\
+  listen %s;\n\
+  root /usr/share/nginx/html;\n\
+  index index.html;\n\
+  location / {\n\
+    try_files $uri $uri/ /index.html;\n\
+  }\n\
+}\n' "${PORT:-80}" > /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+CMD ["/bin/sh", "-c", "sed -i \"s/listen .*/listen ${PORT:-80};/\" /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
