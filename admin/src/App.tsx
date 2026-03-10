@@ -107,6 +107,7 @@ function App() {
   const [statusMessage, setStatusMessage] = useState("Ready");
   // ── Player UI state ───────────────────────────────────────────
   const [playerTab, setPlayerTab] = useState<"clue" | "leaderboard">("clue");
+  const [infoModal, setInfoModal] = useState<"howtoplay" | "rules" | "help" | null>(null);
   const [submitFile, setSubmitFile] = useState<File | null>(null);
   const [submitPreviewUrl, setSubmitPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -1218,6 +1219,135 @@ function App() {
               )}
             </div>
           )}
+
+          {/* ── Info modal ──────────────────────────────────── */}
+          {infoModal && (
+            <div className="info-overlay" onClick={(e) => { if (e.target === e.currentTarget) setInfoModal(null); }}>
+              <div className="info-modal">
+                <button className="info-modal__close" onClick={() => setInfoModal(null)}>✕</button>
+
+                {infoModal === "howtoplay" && (
+                  <>
+                    <h2 className="info-title">🗺️ How to Play</h2>
+                    <div className="info-body">
+                      <p>Welcome to <strong>Boyz Weekend 2026</strong> — a live scavenger hunt across San Francisco!</p>
+                      <h3>The Basics</h3>
+                      <ul>
+                        <li>Four teams race to solve <strong>12 clues</strong> hidden across the city.</li>
+                        <li>All teammates see the same current clue at the same time.</li>
+                        <li>Only the <strong>👑 Captain</strong> can submit answers, skip clues, or use sabotage.</li>
+                      </ul>
+                      <h3>Solving a Clue</h3>
+                      <ul>
+                        <li>Read the clue carefully and find the location or answer.</li>
+                        <li>Some clues require a <strong>QR code scan</strong> at the spot — tap "Scan QR Code".</li>
+                        <li>Submit a photo, video, or text description as proof.</li>
+                        <li>An AI judge instantly reviews your submission. If it's unclear, an admin reviews it.</li>
+                      </ul>
+                      <h3>Transport</h3>
+                      <ul>
+                        <li>🚶 Most early clues are on foot.</li>
+                        <li>🚗 One clue requires a <strong>Waymo</strong> ride — book it when you see the banner.</li>
+                        <li>🚃 One clue requires the <strong>Cable Car</strong> to Buena Vista Bar.</li>
+                      </ul>
+                      <h3>Scoring &amp; Winning</h3>
+                      <ul>
+                        <li>Each clue awards points. Speed and accuracy matter.</li>
+                        <li>Complete at least <strong>7 clues</strong> to be eligible to win.</li>
+                        <li>You can skip up to <strong>5 optional clues</strong> — REQUIRED clues cannot be skipped.</li>
+                        <li>Final score on the leaderboard determines the winner.</li>
+                      </ul>
+                      <h3>Sabotage</h3>
+                      <ul>
+                        <li>Captains can spend points on sabotage actions against rival teams.</li>
+                        <li>Check the ⚡ Sabotage tab to see available actions.</li>
+                      </ul>
+                    </div>
+                  </>
+                )}
+
+                {infoModal === "rules" && (
+                  <>
+                    <h2 className="info-title">📋 Rules</h2>
+                    <div className="info-body">
+                      <ol>
+                        <li>Each team has exactly <strong>one captain</strong>. Only the captain can submit answers, skip clues, or trigger sabotage.</li>
+                        <li>Teams must complete <strong>at least 7 clues</strong> to be eligible to win.</li>
+                        <li>You may skip up to <strong>5 optional clues</strong>. <strong>REQUIRED clues cannot be skipped.</strong></li>
+                        <li>You must <strong>physically be at the location</strong> to scan QR codes — no sharing QR codes between teams.</li>
+                        <li><strong>No sharing answers</strong> with other teams. Each team must solve clues independently.</li>
+                        <li>Do not travel to a future clue location before unlocking it.</li>
+                        <li>Photo and video submissions must show your <strong>whole team</strong> unless the clue specifies otherwise.</li>
+                        <li>AI verdicts are instant. Admin overrides are final.</li>
+                        <li>Screenshots of clues will be flagged as a security event and may result in point deductions.</li>
+                        <li>Required transport modes (<strong>Waymo</strong>, <strong>Cable Car</strong>) must be used — no substitutes.</li>
+                        <li>Disputes must be raised with the admin via the Get Help screen.</li>
+                        <li className="rule-final"><strong>The Dictator's decision is always final.</strong></li>
+                      </ol>
+                    </div>
+                  </>
+                )}
+
+                {infoModal === "help" && (
+                  <>
+                    <h2 className="info-title">🆘 Get Help</h2>
+                    <div className="info-body">
+                      <div className="faq-item">
+                        <div className="faq-q">The app won't load or is stuck</div>
+                        <div className="faq-a">Close and reopen your browser. Make sure you have a mobile data or Wi-Fi connection. Try refreshing the page.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">I can't join my team</div>
+                        <div className="faq-a">Double-check your team join code (e.g. SPADES-AJ29LN). Captains must also enter their 6-digit PIN. Members leave the PIN blank.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">The QR code won't scan</div>
+                        <div className="faq-a">Allow camera access when prompted. Make sure you are physically at the correct location — QR scans are validated server-side and will fail if you're at the wrong clue.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">Our submission keeps getting FAIL</div>
+                        <div className="faq-a">Read the AI feedback carefully — it explains exactly what was missing. Make sure your photo includes all required elements listed in the clue. Resubmit as many times as needed while the clue is active.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">Our answer is stuck in "Needs Review"</div>
+                        <div className="faq-a">The admin is reviewing it manually. Stand by — you'll see the verdict appear on screen when it's resolved. Do not resubmit.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">The leaderboard isn't updating</div>
+                        <div className="faq-a">Tap the 🔄 Refresh button on the Standings tab. If it still doesn't update, try switching tabs and coming back.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">We accidentally skipped a clue</div>
+                        <div className="faq-a">Contact the Dictator immediately using the button below. They can reopen a clue with admin tools.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">The app shows the wrong clue</div>
+                        <div className="faq-a">Tap 🔄 Tap to load on the clue panel to force a refresh from the server.</div>
+                      </div>
+                      <div className="faq-item">
+                        <div className="faq-q">Something else is wrong</div>
+                        <div className="faq-a">Use the button below to alert the Dictator directly.</div>
+                      </div>
+
+                      <a
+                        className="btn-dictator"
+                        href={`sms:4086054832?body=${encodeURIComponent("A team needs your help. If it is your team help them. If it is not, don't")}`}
+                      >
+                        📲 Contact the Dictator
+                      </a>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── Fixed bottom help bar ───────────────────────── */}
+          <div className="help-bar">
+            <button className="help-bar__btn" onClick={() => setInfoModal("howtoplay")}>How to Play</button>
+            <button className="help-bar__btn" onClick={() => setInfoModal("rules")}>Rules</button>
+            <button className="help-bar__btn" onClick={() => setInfoModal("help")}>Get Help</button>
+          </div>
         </div>
       )}
 
