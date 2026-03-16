@@ -62,6 +62,13 @@ type LeaderboardTeam = {
   currentClueIndex: number;
 };
 
+type JoinTeamOption = {
+  teamId: string;
+  teamName: string;
+  captainName: string;
+  assignedParticipants: string[];
+};
+
 type GameStatus = "PENDING" | "RUNNING" | "PAUSED" | "ENDED";
 
 type GameStatusPayload = {
@@ -87,6 +94,7 @@ function App() {
   const [joinCode, setJoinCode] = useState("SPADES");
   const [displayName, setDisplayName] = useState("");
   const [captainPin, setCaptainPin] = useState("");
+  const [joinOptions, setJoinOptions] = useState<JoinTeamOption[]>([]);
   const [authToken, setAuthToken] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [teamId, setTeamId] = useState("");
@@ -146,6 +154,9 @@ function App() {
   const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
+  const [teamAssignments, setTeamAssignments] = useState<JoinTeamOption[]>([]);
+  const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
+  const [assignmentName, setAssignmentName] = useState("");
   // ── Verdict reveal overlay ────────────────────────────────────
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
@@ -287,6 +298,13 @@ function App() {
     [selectedHelpIssueId]
   );
 
+  const selectedJoinTeam = useMemo(
+    () => joinOptions.find((team) => team.teamName === normalizeTeamCodeInput(joinCode)),
+    [joinCode, joinOptions]
+  );
+
+  const selectedJoinParticipants = selectedJoinTeam?.assignedParticipants ?? [];
+
   const buildDictatorSmsBody = (isTest: boolean) => {
     const teamName = normalizeTeamCodeInput(teamState?.teamName ?? joinCode) || "UNKNOWN";
     const clueNumber = (teamState?.currentClueIndex ?? 0) + 1;
@@ -333,7 +351,7 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           joinCode: normalizeTeamCodeInput(joinCode),
-          displayName,
+          displayName: displayName.trim(),
           captainPin: captainPin.trim() ? captainPin : undefined
         })
       });
@@ -357,6 +375,79 @@ function App() {
     void fetchGameStatus();
     await refreshTeamState(payload.session.token);
     setStatusMessage(`Joined as ${payload.session.role}`);
+  };
+
+  const fetchJoinOptions = async () => {
+    const endpoint = `${apiBase}/join/options`;
+    let response: Response;
+    try {
+      response = await fetch(endpoint);
+    } catch (error) {
+      setStatusMessage(formatNetworkError("Join options fetch", endpoint, error));
+      return;
+    }
+
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Join options fetch failed"));
+      return;
+    }
+
+    const payload = await response.json();
+    setJoinOptions(payload.teams || []);
+  };
+
+  const fetchTeamAssignments = async () => {
+    const response = await fetch(`${apiBase}/admin/team-assignments`, { headers: adminHeaders });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Team assignment fetch failed");
+      return;
+    }
+    setTeamAssignments(payload.teams || []);
+  };
+
+  const assignParticipantToTeam = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmedName = assignmentName.trim();
+    if (!trimmedName) {
+      setStatusMessage("Participant name is required");
+      return;
+    }
+
+    const response = await fetch(`${apiBase}/admin/team-assignments/assign`, {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ teamId: assignmentTeamId, participantName: trimmedName })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Team assignment failed");
+      return;
+    }
+
+    setAssignmentName("");
+    setStatusMessage(
+      payload.movedFromTeamId
+        ? `Moved ${payload.participantName} from ${payload.movedFromTeamId} to ${payload.teamId}`
+        : `Assigned ${payload.participantName} to ${payload.teamId}`
+    );
+    await Promise.all([fetchTeamAssignments(), fetchAuditLogs()]);
+  };
+
+  const removeParticipantFromTeam = async (teamId: string, participantName: string) => {
+    const response = await fetch(`${apiBase}/admin/team-assignments/remove`, {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({ teamId, participantName })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Participant removal failed");
+      return;
+    }
+
+    setStatusMessage(`Removed ${payload.participantName} from ${payload.teamId}`);
+    await Promise.all([fetchTeamAssignments(), fetchAuditLogs()]);
   };
 
   const refreshTeamState = async (tokenOverride?: string) => {
@@ -813,10 +904,23 @@ function App() {
   // ── Player: fetch game status + leaderboard on mount ─────────
   useEffect(() => {
     if (mode !== "player") return;
+    void fetchJoinOptions();
     void fetchGameStatus();
     void fetchLeaderboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
+
+  useEffect(() => {
+    if (!displayName) return;
+    if (selectedJoinParticipants.includes(displayName)) return;
+    setDisplayName("");
+  }, [displayName, selectedJoinParticipants]);
+
+  useEffect(() => {
+    if (mode !== "admin" || !adminToken || adminView !== "setup") return;
+    void fetchTeamAssignments();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, adminView, mode]);
 
   // ── Player: countdown timer ───────────────────────────────────
   useEffect(() => {
@@ -1021,32 +1125,34 @@ function App() {
                       type="button"
                       data-testid={`team-chip-${team.toLowerCase()}`}
                       className={`team-chip${normalizeTeamCodeInput(joinCode) === team ? " team-chip--active" : ""}`}
-                      onClick={() => setJoinCode(team)}
+                      onClick={() => {
+                        setJoinCode(team);
+                        setDisplayName("");
+                      }}
                     >
                       <span className="team-chip__suit">{TEAM_THEMES[team].suit}</span>
                       <span>{team}</span>
                     </button>
                   ))}
                 </div>
-                <div className="field-hint">Tap your team, or paste a legacy code like SPADES-AJ29LN.</div>
-                <input
-                  data-testid="join-code-input"
-                  className="join-input"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(normalizeTeamCodeInput(e.target.value))}
-                  placeholder="e.g. SPADES"
-                  autoCapitalize="characters"
-                  autoCorrect="off"
-                  spellCheck={false}
-                />
+                <div className="field-hint">Tap your team, then choose your assigned name from that roster.</div>
                 <label className="field-label">Your name</label>
-                <input
-                  data-testid="display-name-input"
-                  className="join-input"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="First name"
-                />
+                {selectedJoinParticipants.length > 0 ? (
+                  <div className="name-chip-row" role="radiogroup" aria-label="Assigned names">
+                    {selectedJoinParticipants.map((participantName) => (
+                      <button
+                        key={participantName}
+                        type="button"
+                        className={`name-chip${displayName === participantName ? " name-chip--active" : ""}`}
+                        onClick={() => setDisplayName(participantName)}
+                      >
+                        {participantName}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="empty-roster-note">No players are assigned to this team yet. Ask the Dictator to add you first.</div>
+                )}
                 <label className="field-label">
                   Captain PIN <span className="field-optional">(captains only — leave blank if member)</span>
                 </label>
@@ -1059,7 +1165,7 @@ function App() {
                   onChange={(e) => setCaptainPin(e.target.value)}
                   placeholder="6-digit PIN"
                 />
-                <button data-testid="join-submit-btn" className="join-btn" type="submit">Join Hunt →</button>
+                <button data-testid="join-submit-btn" className="join-btn" type="submit" disabled={!displayName}>Join Hunt →</button>
               </form>
 
               {statusMessage && statusMessage !== "Ready" && (
@@ -1390,7 +1496,7 @@ function App() {
                       <p>Welcome to <strong>Boyz Weekend 2026</strong> — a live scavenger hunt across San Francisco!</p>
                       <h3>Getting Started</h3>
                       <ul>
-                        <li>Enter your name and team, then wait. The Dictator will start the hunt and notify your captain.</li>
+                        <li>Select your team, then tap your assigned name from that team's roster.</li>
                         <li>Each team starts on a <strong>different clue</strong> — you won't see anyone else's progress until the leaderboard updates.</li>
                         <li>Only the <strong>👑 Captain</strong> can reveal clues, submit answers, and use passes.</li>
                       </ul>
@@ -1449,7 +1555,7 @@ function App() {
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">I can't join my team</div>
-                        <div className="faq-a">Enter your team name (SPADES, HEARTS, DIAMONDS, or CLUBS). Captains must also enter their 6-digit PIN. Members leave the PIN blank.</div>
+                        <div className="faq-a">Tap your team, then choose your assigned name from the list for that team. If your name is missing, contact the Dictator. Captains still enter their 6-digit PIN.</div>
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">Our submission keeps getting FAIL</div>
@@ -1592,6 +1698,51 @@ function App() {
 
           {adminView === "setup" && (
             <>
+              <h3>Team Assignments</h3>
+              <form onSubmit={assignParticipantToTeam} className="panel">
+                <select value={assignmentTeamId} onChange={(event) => setAssignmentTeamId(event.target.value)}>
+                  {TEAM_SUIT_OPTIONS.map((team) => (
+                    <option key={team} value={team.toLowerCase()}>{team}</option>
+                  ))}
+                </select>
+                <input
+                  value={assignmentName}
+                  onChange={(event) => setAssignmentName(event.target.value)}
+                  placeholder="Assign player name to selected team"
+                />
+                <div className="actions-row">
+                  <button type="submit">Assign To Team</button>
+                  <button type="button" onClick={() => { void fetchTeamAssignments(); }}>Refresh Assignments</button>
+                </div>
+              </form>
+
+              <div className="assignment-grid">
+                {teamAssignments.map((team) => (
+                  <div key={team.teamId} className="assignment-card">
+                    <div className="assignment-card__title">{team.teamName}</div>
+                    <div className="assignment-card__meta">Captain: {team.captainName}</div>
+                    {team.assignedParticipants.length > 0 ? (
+                      <div className="assignment-pill-row">
+                        {team.assignedParticipants.map((participantName) => (
+                          <button
+                            key={`${team.teamId}-${participantName}`}
+                            type="button"
+                            className="assignment-pill"
+                            onClick={() => { void removeParticipantFromTeam(team.teamId, participantName); }}
+                            title="Remove from team"
+                          >
+                            <span>{participantName}</span>
+                            <span className="assignment-pill__remove">✕</span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="assignment-empty">No players assigned yet.</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
               <h3>Clue Files</h3>
               <form onSubmit={uploadAdminCluesFile} className="panel">
                 <select

@@ -95,6 +95,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.status(200).json(result);
   });
 
+  router.get("/join/options", (_req, res) => {
+    return res.status(200).json({ teams: gameEngine.getJoinOptions() });
+  });
+
   router.post("/auth/admin/login", (req, res) => {
     const password = typeof req.body?.password === "string" ? req.body.password : "";
     const result = gameEngine.loginAdmin(password, env.ADMIN_PASSWORD);
@@ -416,6 +420,47 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const offset = parseOffset(req.query.offset, 0, 10000);
 
     return res.json(gameEngine.getAuditLogs(limit, offset));
+  });
+
+  router.get("/admin/team-assignments", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    return res.json({ teams: gameEngine.getJoinOptions() });
+  });
+
+  router.post("/admin/team-assignments/assign", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
+    const participantName = typeof req.body?.participantName === "string" ? req.body.participantName.trim() : "";
+    const result = await gameEngine.assignParticipantToTeam(teamId, participantName);
+    if ("error" in result) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  });
+
+  router.post("/admin/team-assignments/remove", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
+    const participantName = typeof req.body?.participantName === "string" ? req.body.participantName.trim() : "";
+    const result = await gameEngine.removeParticipantFromTeam(teamId, participantName);
+    if ("error" in result) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
   });
 
   router.post("/admin/team/:teamId/deduct", async (req, res) => {

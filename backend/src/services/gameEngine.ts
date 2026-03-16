@@ -74,6 +74,7 @@ type TeamState = {
   joinCode: string;
   captainName: string;
   captainPin: string;
+  assignedParticipants: string[];
   scoreTotal: number;
   sabotageBalance: number;
   currentClueIndex: number;
@@ -261,6 +262,7 @@ const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
     joinCode: team.join_code,
     captainName: team.captain_name,
     captainPin: team.captain_pin,
+    assignedParticipants: [],
     scoreTotal: 0,
     sabotageBalance: 100,
     currentClueIndex: 0,
@@ -330,6 +332,9 @@ export class GameEngine {
     this.securityEvents = [...snapshot.securityEvents];
     this.auditLogs = [...snapshot.auditLogs];
     snapshot.teams.forEach((team) => {
+      team.assignedParticipants = Array.isArray(team.assignedParticipants)
+        ? team.assignedParticipants.filter((value) => typeof value === "string" && value.trim().length > 0)
+        : [];
       this.teamsById.set(team.teamId, team);
       const fullJoinCode = team.joinCode.toUpperCase();
       this.teamByJoinCode.set(fullJoinCode, team);
@@ -384,21 +389,105 @@ export class GameEngine {
 
   joinTeam(joinCode: string, displayName: string, captainPin?: string) {
     const normalizedJoinCode = joinCode.trim().toUpperCase();
+    const normalizedDisplayName = displayName.trim();
     const team = this.teamByJoinCode.get(normalizedJoinCode);
     if (!team) return { error: "Invalid join code." as const };
+    if (!normalizedDisplayName) return { error: "displayName is required." as const };
+
+    const assignedParticipant = team.assignedParticipants.find(
+      (value) => value.trim().toLowerCase() === normalizedDisplayName.toLowerCase()
+    );
+    if (!assignedParticipant) {
+      return { error: "Select your assigned name from this team's roster." as const };
+    }
+
     let role: ParticipantRole = "MEMBER";
     if (captainPin) {
       if (captainPin !== team.captainPin) return { error: "Invalid captain PIN." as const };
       role = "CAPTAIN";
     }
     const token = crypto.randomUUID();
-    const session = { token, teamId: team.teamId, displayName, role };
+    const session = { token, teamId: team.teamId, displayName: assignedParticipant, role };
     this.participantSessionsByToken.set(token, session);
     return { session, team: { teamId: team.teamId, teamName: team.teamName, captainName: team.captainName } };
   }
 
   getSession(token: string | undefined) {
     return token ? this.participantSessionsByToken.get(token) ?? null : null;
+  }
+
+  getJoinOptions() {
+    return Array.from(this.teamsById.values())
+      .map((team) => ({
+        teamId: team.teamId,
+        teamName: team.teamName,
+        captainName: team.captainName,
+        assignedParticipants: [...team.assignedParticipants].sort((a, b) => a.localeCompare(b))
+      }))
+      .sort((a, b) => a.teamName.localeCompare(b.teamName));
+  }
+
+  async assignParticipantToTeam(teamId: string, participantName: string) {
+    const team = this.teamsById.get(teamId);
+    if (!team) return { error: "Team not found." as const };
+
+    const normalizedParticipantName = participantName.trim();
+    if (!normalizedParticipantName) return { error: "participantName is required." as const };
+
+    let movedFromTeamId: string | null = null;
+    for (const candidate of this.teamsById.values()) {
+      const existingIndex = candidate.assignedParticipants.findIndex(
+        (value) => value.trim().toLowerCase() === normalizedParticipantName.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        candidate.assignedParticipants.splice(existingIndex, 1);
+        movedFromTeamId = candidate.teamId;
+      }
+    }
+
+    team.assignedParticipants.push(normalizedParticipantName);
+    team.assignedParticipants.sort((a, b) => a.localeCompare(b));
+
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "TEAM_PARTICIPANT_ASSIGNED",
+      targetType: "TEAM",
+      targetId: teamId,
+      reason: normalizedParticipantName,
+      metadata: { participantName: normalizedParticipantName, movedFromTeamId },
+      createdAt: new Date().toISOString()
+    });
+
+    await this.persist();
+    return { teamId, participantName: normalizedParticipantName, movedFromTeamId };
+  }
+
+  async removeParticipantFromTeam(teamId: string, participantName: string) {
+    const team = this.teamsById.get(teamId);
+    if (!team) return { error: "Team not found." as const };
+
+    const normalizedParticipantName = participantName.trim();
+    if (!normalizedParticipantName) return { error: "participantName is required." as const };
+
+    const existingIndex = team.assignedParticipants.findIndex(
+      (value) => value.trim().toLowerCase() === normalizedParticipantName.toLowerCase()
+    );
+    if (existingIndex < 0) return { error: "Participant not assigned to this team." as const };
+
+    const [removedParticipantName] = team.assignedParticipants.splice(existingIndex, 1);
+
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "TEAM_PARTICIPANT_REMOVED",
+      targetType: "TEAM",
+      targetId: teamId,
+      reason: removedParticipantName,
+      metadata: { participantName: removedParticipantName },
+      createdAt: new Date().toISOString()
+    });
+
+    await this.persist();
+    return { teamId, participantName: removedParticipantName };
   }
 
   getTeamState(teamId: string) {
