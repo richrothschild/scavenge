@@ -1,7 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { io } from "socket.io-client";
-import jsQR from "jsqr";
 import { derivePaginationState, parseLimitInput, parseOffsetInput } from "./utils/pagination";
 import "./App.css";
 
@@ -16,7 +15,6 @@ const TEAM_SUIT_OPTIONS: TeamSuit[] = ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"];
 
 const HELP_ISSUES = [
   { id: "GENERAL", label: "General issue", smsLine: "General support request" },
-  { id: "QR_SCAN", label: "QR scan broken", smsLine: "QR scan is not working" },
   { id: "WRONG_CLUE", label: "Wrong clue shown", smsLine: "Wrong clue is showing" },
   { id: "NEEDS_REVIEW", label: "Review delay", smsLine: "Submission is stuck in NEEDS_REVIEW" },
   { id: "APP_STUCK", label: "App stuck", smsLine: "App is frozen or not loading" }
@@ -81,7 +79,6 @@ type RealtimeEventItem = {
 };
 
 type AdminClueSource = "test" | "production";
-type AdminClueResolvedSource = AdminClueSource | "active" | "default";
 
 function App() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
@@ -115,9 +112,6 @@ function App() {
   const [reopenReason, setReopenReason] = useState("Manual review window");
   const [gameStatus, setGameStatus] = useState<GameStatusPayload | null>(null);
   const [reviewPassPointsOverride, setReviewPassPointsOverride] = useState("");
-  const [invalidateTeamId, setInvalidateTeamId] = useState("");
-  const [rotateClueIndex, setRotateClueIndex] = useState("0");
-  const [rotateQrPublicId, setRotateQrPublicId] = useState("");
   const [liveOpsAutoRefreshEnabled, setLiveOpsAutoRefreshEnabled] = useState(false);
   const [liveOpsPollSeconds, setLiveOpsPollSeconds] = useState("10");
   const [realtimeEnabled, setRealtimeEnabled] = useState(true);
@@ -147,18 +141,6 @@ function App() {
   const [sabotageTab, setSabotageTab] = useState(false);
   const [sabotageAction, setSabotageAction] = useState("");
   const [sabotageTarget, setSabotageTarget] = useState("");
-  // ── QR scanner ────────────────────────────────────────────────
-  const [qrScanActive, setQrScanActive] = useState(false);
-  const [qrScanStatus, setQrScanStatus] = useState("");
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // ── Admin clues (for QR print) ────────────────────────────────
-  const [adminClues, setAdminClues] = useState<any[]>([]);
-  const [adminClueSource, setAdminClueSource] = useState<AdminClueSource>("production");
-  const [adminClueResolvedSource, setAdminClueResolvedSource] = useState<AdminClueResolvedSource>("active");
-  const [adminClueFallbackToDefault, setAdminClueFallbackToDefault] = useState(false);
-  const [adminClueSourceFile, setAdminClueSourceFile] = useState("");
   const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
@@ -296,11 +278,6 @@ function App() {
     return null;
   };
 
-  const toFileName = (value: string) => {
-    const parts = value.split(/[/\\]/);
-    return parts[parts.length - 1] || value;
-  };
-
   const selectedHelpIssue = useMemo(
     () => HELP_ISSUES.find((issue) => issue.id === selectedHelpIssueId) ?? HELP_ISSUES[0],
     [selectedHelpIssueId]
@@ -389,51 +366,9 @@ function App() {
     setTeamState(payload);
   };
 
-  const ensureScanValidatedForCurrentClue = async () => {
-    const currentClue = teamState?.currentClue;
-    if (!currentClue?.requires_scan) {
-      return { ok: true as const };
-    }
-    // Already validated via QR scanner
-    if (teamState?.clueState?.scan_validated) {
-      return { ok: true as const };
-    }
-
-    const scanSessionResponse = await fetch(`${apiBase}/team/me/scan-session`, {
-      method: "POST",
-      headers
-    });
-    const scanSessionPayload = await scanSessionResponse.json();
-    if (!scanSessionResponse.ok) {
-      return { ok: false as const, error: scanSessionPayload.error || "Failed to create scan session." };
-    }
-
-    const token = scanSessionPayload.scanSessionToken;
-    const validateResponse = await fetch(`${apiBase}/team/me/scan-validate`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        scanSessionToken: token,
-        checkpointPublicId: currentClue.qr_public_id
-      })
-    });
-    const validatePayload = await validateResponse.json();
-    if (!validateResponse.ok) {
-      return { ok: false as const, error: validatePayload.error || "Failed to validate scan." };
-    }
-
-    return { ok: true as const };
-  };
-
   const submitClue = async () => {
     setIsSubmitting(true);
     try {
-      const scanResult = await ensureScanValidatedForCurrentClue();
-      if (!scanResult.ok) {
-        setStatusMessage(scanResult.error);
-        return;
-      }
-
       let mediaData: string | undefined;
       if (submitFile) {
         mediaData = await new Promise<string>((resolve, reject) => {
@@ -497,96 +432,7 @@ function App() {
   };
 
 
-  const startQrScanner = async () => {
-    setQrScanActive(true);
-    setQrScanStatus("Starting camera…");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-      if (!videoRef.current) return;
-      videoRef.current.srcObject = stream;
-      await videoRef.current.play();
-      setQrScanStatus("Scanning… point at the QR code.");
 
-      qrIntervalRef.current = setInterval(() => {
-        const video = videoRef.current;
-        const canvas = canvasRef.current;
-        if (!video || !canvas || video.readyState < 2) return;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) return;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height);
-        if (code?.data) {
-          stopQrScanner(stream);
-          handleQrResult(code.data);
-        }
-      }, 250);
-    } catch (err) {
-      setQrScanStatus("Camera access denied. Allow camera permission and try again.");
-    }
-  };
-
-  const stopQrScanner = (stream?: MediaStream) => {
-    if (qrIntervalRef.current) { clearInterval(qrIntervalRef.current); qrIntervalRef.current = null; }
-    const s = stream ?? (videoRef.current?.srcObject as MediaStream | null);
-    s?.getTracks().forEach(t => t.stop());
-    if (videoRef.current) videoRef.current.srcObject = null;
-    setQrScanActive(false);
-  };
-
-  const handleQrResult = async (scannedId: string) => {
-    setQrScanStatus(`Scanned: ${scannedId} — validating…`);
-    const currentClue = teamState?.currentClue;
-    if (!currentClue?.requires_scan) {
-      setQrScanStatus("This clue does not require a scan. Proceeding.");
-      return;
-    }
-
-    const scanSessionResponse = await fetch(`${apiBase}/team/me/scan-session`, { method: "POST", headers });
-    const scanSessionPayload = await scanSessionResponse.json();
-    if (!scanSessionResponse.ok) {
-      setQrScanStatus(scanSessionPayload.error || "Failed to create scan session.");
-      return;
-    }
-
-    const validateResponse = await fetch(`${apiBase}/team/me/scan-validate`, {
-      method: "POST", headers,
-      body: JSON.stringify({ scanSessionToken: scanSessionPayload.scanSessionToken, checkpointPublicId: scannedId })
-    });
-    const validatePayload = await validateResponse.json();
-    if (!validateResponse.ok) {
-      setQrScanStatus(validatePayload.error || "QR code not valid for this clue.");
-      return;
-    }
-    setQrScanStatus("✅ Check-in confirmed! You can now submit your answer.");
-    await refreshTeamState();
-  };
-
-  const fetchAdminClues = async (source: AdminClueSource = adminClueSource) => {
-    const response = await fetch(`${apiBase}/admin/clues?source=${source}`, { headers: { "Content-Type": "application/json", "x-admin-token": adminToken } });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatusMessage(payload.error || "Failed to load admin clues");
-      return;
-    }
-
-    setAdminClues(payload.clues || []);
-    setAdminClueSource(source);
-    if (payload.resolvedSource === "test" || payload.resolvedSource === "production" || payload.resolvedSource === "active" || payload.resolvedSource === "default") {
-      setAdminClueResolvedSource(payload.resolvedSource);
-    }
-    setAdminClueFallbackToDefault(Boolean(payload.fallbackToDefault));
-    setAdminClueSourceFile(typeof payload.sourceFile === "string" ? payload.sourceFile : "");
-
-    if (payload.fallbackToDefault) {
-      setStatusMessage(`Loaded ${source} clues from default seed-config.json (missing ${source} seed file).`);
-      return;
-    }
-
-    setStatusMessage(`Loaded ${source} clues.`);
-  };
 
   const fetchSabotageCatalog = async () => {
     const response = await fetch(`${apiBase}/sabotage/catalog`, { headers });
@@ -624,8 +470,6 @@ function App() {
       }
 
       setStatusMessage(`Uploaded ${adminClueUploadSource} clue file with ${payload.clueCount} clues.`);
-      setAdminClueSource(adminClueUploadSource);
-      await fetchAdminClues(adminClueUploadSource);
     } finally {
       setAdminClueUploadBusy(false);
     }
@@ -1115,49 +959,6 @@ function App() {
     await Promise.all([fetchAuditLogs(), fetchLeaderboard()]);
   };
 
-  const invalidateScanSessions = async (event: FormEvent) => {
-    event.preventDefault();
-    const response = await fetch(`${apiBase}/admin/scan-sessions/invalidate`, {
-      method: "POST",
-      headers: adminHeaders,
-      body: JSON.stringify({ teamId: invalidateTeamId.trim() || undefined })
-    });
-
-    if (!response.ok) {
-      setStatusMessage(await parseError(response, "Scan session invalidation failed"));
-      return;
-    }
-
-    const payload = await response.json();
-    setStatusMessage(`Invalidated ${payload.invalidatedCount} scan sessions`);
-    await fetchAuditLogs();
-  };
-
-  const rotateQrPublicIdForClue = async (event: FormEvent) => {
-    event.preventDefault();
-    const clueIndex = Number(rotateClueIndex);
-    if (!Number.isInteger(clueIndex) || clueIndex < 0) {
-      setStatusMessage("Clue index must be a non-negative integer");
-      return;
-    }
-
-    const response = await fetch(`${apiBase}/admin/clues/${clueIndex}/rotate-qr`, {
-      method: "POST",
-      headers: adminHeaders,
-      body: JSON.stringify({ qrPublicId: rotateQrPublicId.trim() || undefined })
-    });
-
-    if (!response.ok) {
-      setStatusMessage(await parseError(response, "QR rotation failed"));
-      return;
-    }
-
-    const payload = await response.json();
-    setStatusMessage(`Clue ${payload.clueIndex + 1} QR rotated to ${payload.qrPublicId}`);
-    setRotateQrPublicId(payload.qrPublicId);
-    await fetchAuditLogs();
-  };
-
   const loadTeamContext = (selectedTeamId: string, currentClueIndex: number) => {
     setDeductTeamId(selectedTeamId);
     setDeductReason("Admin adjustment");
@@ -1336,41 +1137,6 @@ function App() {
                         </div>
                         <h2 className="clue-title">{teamState.currentClue.title}</h2>
                         <p className="clue-text">{teamState.currentClue.instructions}</p>
-                        {teamState.currentClue.requires_scan && (
-                          <div className="scan-notice">
-                            📱 QR code check-in required at this location
-                            {teamState?.clueState?.scan_validated
-                              ? <span className="scan-ok"> ✅ Checked in!</span>
-                              : (
-                                <button className="btn-scan" onClick={() => { void startQrScanner(); }}>
-                                  Scan QR Code
-                                </button>
-                              )}
-                          </div>
-                        )}
-
-                      {/* QR scanner modal */}
-                      {qrScanActive && (
-                        <div className="qr-overlay">
-                          <div className="qr-modal">
-                            <p className="qr-status">{qrScanStatus}</p>
-                            <div className="qr-video-wrap">
-                              <video ref={videoRef} className="qr-video" playsInline muted />
-                              <div className="qr-viewfinder">
-                                <span className="qvf qvf-tl" /><span className="qvf qvf-tr" />
-                                <span className="qvf qvf-bl" /><span className="qvf qvf-br" />
-                              </div>
-                            </div>
-                            <canvas ref={canvasRef} style={{ display: "none" }} />
-                            <button className="btn-pass" onClick={() => stopQrScanner()}>Cancel</button>
-                          </div>
-                        </div>
-                      )}
-                      {!qrScanActive && qrScanStatus && (
-                        <div className={`scan-result ${qrScanStatus.startsWith("✅") ? "scan-result--ok" : "scan-result--err"}`}>
-                          {qrScanStatus}
-                        </div>
-                      )}
                       </div>
 
                       {/* Verdict */}
@@ -1760,32 +1526,7 @@ function App() {
 
           {adminView === "setup" && (
             <>
-              <h3>Scan Session Controls</h3>
-              <form onSubmit={invalidateScanSessions} className="panel">
-                <input
-                  value={invalidateTeamId}
-                  onChange={(event) => setInvalidateTeamId(event.target.value)}
-                  placeholder="Team id (optional; blank = all teams)"
-                />
-                <button type="submit">Invalidate Scan Sessions</button>
-              </form>
-
-              <h3>QR Rotation</h3>
-              <form onSubmit={rotateQrPublicIdForClue} className="panel">
-                <input
-                  value={rotateClueIndex}
-                  onChange={(event) => setRotateClueIndex(event.target.value)}
-                  placeholder="Clue index (0-11)"
-                />
-                <input
-                  value={rotateQrPublicId}
-                  onChange={(event) => setRotateQrPublicId(event.target.value)}
-                  placeholder="QR public id (optional; auto-generated if blank)"
-                />
-                <button type="submit">Rotate QR Public ID</button>
-              </form>
-
-              <h3>QR Codes</h3>
+              <h3>Clue Files</h3>
               <form onSubmit={uploadAdminCluesFile} className="panel">
                 <select
                   value={adminClueUploadSource}
@@ -1809,45 +1550,6 @@ function App() {
                   Download {adminClueUploadSource} template
                 </button>
               </form>
-              <div className="panel">
-                <button onClick={() => { void fetchAdminClues(adminClueSource); }}>
-                  Load {adminClueSource === "test" ? "Test" : "Production"} QR Codes
-                </button>
-                <button onClick={() => { void fetchAdminClues(adminClueSource === "production" ? "test" : "production"); }}>
-                  Show {adminClueSource === "production" ? "Test" : "Production"} Clues
-                </button>
-                {adminClues.length > 0 && (
-                  <button onClick={() => window.print()} style={{ marginLeft: "0.5rem" }}>🖨️ Print QR Sheet</button>
-                )}
-              </div>
-              <p className="clue-source-meta">
-                Displaying <strong>{adminClueSource}</strong> clues
-                {adminClueFallbackToDefault ? " (fallback: default seed-config.json)" : ""}
-                {adminClueResolvedSource !== "active" ? ` · resolved source: ${adminClueResolvedSource}` : ""}
-              </p>
-              {adminClueSourceFile ? (
-                <p className="clue-source-meta">Source file: {toFileName(adminClueSourceFile)}</p>
-              ) : null}
-              {adminClues.length > 0 && (
-                <div className="qr-grid printable">
-                  {adminClues.map((clue: any) => (
-                    <div key={clue.index} className="qr-cell">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(clue.qr_public_id)}`}
-                        alt={clue.qr_public_id}
-                        className="qr-img"
-                      />
-                      <div className="qr-label">
-                        <strong>{clue.order_index}. {clue.title}</strong>
-                        <div style={{ fontSize: "0.7rem", color: "#888" }}>{clue.qr_public_id}</div>
-                        <div style={{ fontSize: "0.75rem" }}>
-                          {clue.required_flag ? "REQUIRED" : "optional"} · {clue.base_points}pts
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               <h3>Audit Logs</h3>
               <div className="panel filter-row">
