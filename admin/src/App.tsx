@@ -148,6 +148,8 @@ function App() {
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
   const [showWelcome, setShowWelcome] = useState(false);
+  // ── Clue reveal gate (shows tap-to-reveal on each new clue) ──
+  const [revealedClueIndex, setRevealedClueIndex] = useState<number | null>(null);
   // ── Toast notifications ───────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; type: "success" | "error" | "info"; msg: string }>>([]);
   // ── Clue elapsed timer ────────────────────────────────────────
@@ -350,6 +352,7 @@ function App() {
     setLastVerdict(null);
     setLastFeedback("");
     setShowWelcome(true);
+    void fetchGameStatus();
     await refreshTeamState(payload.session.token);
     setStatusMessage(`Joined as ${payload.session.role}`);
   };
@@ -846,6 +849,7 @@ function App() {
       void refreshTeamState();
       void fetchLeaderboard();
     });
+    sock.on("game:status_changed", () => { void fetchGameStatus(); void refreshTeamState(); });
     sock.on("leaderboard:updated", () => { void fetchLeaderboard(); });
     sock.on("submission:verdict_ready", () => { void refreshTeamState(); });
     sock.on("sabotage:triggered", () => { void refreshTeamState(); });
@@ -1116,7 +1120,22 @@ function App() {
               {/* ── Clue tab ─────────────────────────────────── */}
               {playerTab === "clue" && !sabotageTab && (
                 <div className="clue-panel">
-                  {teamState?.currentClue ? (
+                  {/* Waiting for the hunt to start */}
+                  {gameStatus?.status === "PENDING" ? (
+                    <div className="waiting-room">
+                      <div className="waiting-icon">⏳</div>
+                      <h2 className="waiting-title">Hunt starts soon</h2>
+                      <p className="waiting-body">Wait for the Dictator to kick things off. Your first clue will appear here the moment the hunt goes live.</p>
+                      <button className="btn-refresh" onClick={() => { void fetchGameStatus(); void refreshTeamState(); }}>🔄 Check status</button>
+                    </div>
+                  ) : gameStatus?.status === "PAUSED" ? (
+                    <div className="waiting-room waiting-room--paused">
+                      <div className="waiting-icon">⏸️</div>
+                      <h2 className="waiting-title">Hunt is paused</h2>
+                      <p className="waiting-body">Stand by — the Dictator will resume shortly.</p>
+                      <button className="btn-refresh" onClick={() => { void fetchGameStatus(); }}>🔄 Check status</button>
+                    </div>
+                  ) : teamState?.currentClue ? (
                     <>
                       {teamState.currentClue.transport_mode === "WAYMO" && (
                         <div className="transport-banner transport--waymo">🚗 Waymo required to reach this clue</div>
@@ -1128,90 +1147,128 @@ function App() {
                         <div className="transport-banner transport--walk">🚶 Walk to this location</div>
                       )}
 
-                      <div className="clue-card">
-                        <div className="clue-number">
-                          Clue {(teamState.currentClueIndex ?? 0) + 1}
-                          {teamState.currentClue.required_flag
-                            ? <span className="clue-required">REQUIRED</span>
-                            : <span className="clue-optional">optional</span>}
-                        </div>
-                        <h2 className="clue-title">{teamState.currentClue.title}</h2>
-                        <p className="clue-text">{teamState.currentClue.instructions}</p>
-                      </div>
-
-                      {/* Verdict */}
-                      {lastVerdict && (
-                        <div className={`verdict-banner verdict--${lastVerdict === "NEEDS_REVIEW" ? "needs-review" : lastVerdict.toLowerCase()}`}>
-                          {lastVerdict === "PASS" && "✅ Correct! Great work — moving to the next clue."}
-                          {lastVerdict === "FAIL" && "❌ Not quite — check the feedback below and try again."}
-                          {lastVerdict === "NEEDS_REVIEW" && "⏳ Submitted for admin review. Stand by!"}
-                          {lastFeedback && <p className="verdict-feedback">{lastFeedback}</p>}
-                        </div>
-                      )}
-
-                      {/* Captain submit */}
-                      {role === "CAPTAIN" ? (
-                        <div className="submit-panel">
-                          <div className="submit-heading">Submit your answer</div>
-                          <textarea
-                            className="submit-textarea"
-                            value={submitText}
-                            onChange={(e) => setSubmitText(e.target.value)}
-                            placeholder="Describe what you found or did…"
-                            rows={3}
-                          />
-                          <div className="photo-row">
-                            <label className="photo-btn">
-                              📷 {submitFile ? "Change photo/video" : "Add photo or video"}
-                              <input
-                                type="file"
-                                accept="image/*,video/*"
-                                capture="environment"
-                                style={{ display: "none" }}
-                                onChange={(e) => {
-                                  const file = e.target.files?.[0] ?? null;
-                                  setSubmitFile(file);
-                                  if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
-                                  setSubmitPreviewUrl(file ? URL.createObjectURL(file) : null);
-                                }}
-                              />
-                            </label>
-                            {submitFile && (
-                              <button
-                                className="photo-clear"
-                                type="button"
-                                onClick={() => {
-                                  if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
-                                  setSubmitFile(null);
-                                  setSubmitPreviewUrl(null);
-                                }}
-                              >✕ Remove</button>
-                            )}
-                          </div>
-                          {submitPreviewUrl && (
-                            <img src={submitPreviewUrl} alt="Preview" className="photo-preview" />
-                          )}
-                          <div className="submit-actions">
-                            <button
-                              className="btn-submit"
-                              onClick={() => { void submitClue(); }}
-                              disabled={isSubmitting || (!submitText.trim() && !submitFile)}
-                            >
-                              {isSubmitting ? "Submitting…" : "Submit Answer ✓"}
-                            </button>
-                            {!teamState.currentClue.required_flag && (
-                              <button
-                                className="btn-pass"
-                                onClick={() => { void passClue(); }}
-                                disabled={isSubmitting}
-                              >Skip this clue</button>
-                            )}
-                          </div>
+                      {/* Clue reveal gate — tap to see each new clue */}
+                      {revealedClueIndex !== teamState.currentClueIndex ? (
+                        <div className="clue-reveal">
+                          <div className="clue-reveal__number">Clue {(teamState.currentClueIndex ?? 0) + 1}</div>
+                          <p className="clue-reveal__hint">Your next clue is ready. Gather your team, then tap to reveal.</p>
+                          <button
+                            className="btn-reveal"
+                            onClick={() => setRevealedClueIndex(teamState.currentClueIndex)}
+                          >
+                            👁 Reveal Clue {(teamState.currentClueIndex ?? 0) + 1} →
+                          </button>
                         </div>
                       ) : (
-                        <div className="member-notice">
-                          Only your team captain can submit answers or skip clues.
-                        </div>
+                        <>
+                          <div className="clue-card">
+                            <div className="clue-number">
+                              Clue {(teamState.currentClueIndex ?? 0) + 1}
+                              {teamState.currentClue.required_flag
+                                ? <span className="clue-required">REQUIRED</span>
+                                : <span className="clue-optional">optional</span>}
+                            </div>
+                            {/* In-person clues 11 & 12: hide text, instruct team to find Dictator */}
+                            {teamState.currentClueIndex >= 10 ? (
+                              <div className="in-person-clue">
+                                <div className="in-person-icon">🎭</div>
+                                <h2 className="in-person-title">In-Person Clue</h2>
+                                <p className="in-person-body">The Dictator has this one. Find them — they'll give you your instructions face to face.</p>
+                              </div>
+                            ) : (
+                              <>
+                                <h2 className="clue-title">{teamState.currentClue.title}</h2>
+                                <p className="clue-text">{teamState.currentClue.instructions}</p>
+                              </>
+                            )}
+                          </div>
+
+                          {/* Verdict */}
+                          {lastVerdict && (
+                            <div className={`verdict-banner verdict--${lastVerdict === "NEEDS_REVIEW" ? "needs-review" : lastVerdict.toLowerCase()}`}>
+                              {lastVerdict === "PASS" && "✅ Correct! Great work — moving to the next clue."}
+                              {lastVerdict === "FAIL" && "❌ Not quite — check the feedback below and try again."}
+                              {lastVerdict === "NEEDS_REVIEW" && "⏳ Submitted for admin review. Stand by!"}
+                              {lastFeedback && <p className="verdict-feedback">{lastFeedback}</p>}
+                            </div>
+                          )}
+
+                          {/* Captain submit — only visible after clue is revealed */}
+                          {role === "CAPTAIN" ? (
+                            <div className="submit-panel">
+                              <div className="submit-heading">Submit your answer</div>
+                              {teamState.currentClue.submission_type === "PHOTO" && (
+                                <div className="photo-required-hint">📸 Photo required — include at least 2 team members</div>
+                              )}
+                              <textarea
+                                className="submit-textarea"
+                                value={submitText}
+                                onChange={(e) => setSubmitText(e.target.value)}
+                                placeholder="Describe what you found or did…"
+                                rows={3}
+                              />
+                              <div className="photo-row">
+                                <label className="photo-btn">
+                                  📷 {submitFile ? "Change photo/video" : "Add photo or video"}
+                                  <input
+                                    type="file"
+                                    accept="image/*,video/*"
+                                    capture="environment"
+                                    style={{ display: "none" }}
+                                    onChange={(e) => {
+                                      const file = e.target.files?.[0] ?? null;
+                                      setSubmitFile(file);
+                                      if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
+                                      setSubmitPreviewUrl(file ? URL.createObjectURL(file) : null);
+                                    }}
+                                  />
+                                </label>
+                                {submitFile && (
+                                  <button
+                                    className="photo-clear"
+                                    type="button"
+                                    onClick={() => {
+                                      if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
+                                      setSubmitFile(null);
+                                      setSubmitPreviewUrl(null);
+                                    }}
+                                  >✕ Remove</button>
+                                )}
+                              </div>
+                              {submitPreviewUrl && (
+                                <img src={submitPreviewUrl} alt="Preview" className="photo-preview" />
+                              )}
+                              <div className="submit-actions">
+                                <button
+                                  className="btn-submit"
+                                  onClick={() => { void submitClue(); }}
+                                  disabled={
+                                    isSubmitting ||
+                                    (!submitText.trim() && !submitFile) ||
+                                    (teamState.currentClue.submission_type === "PHOTO" && !submitFile)
+                                  }
+                                >
+                                  {isSubmitting ? "Submitting…" : "Submit Answer ✓"}
+                                </button>
+                                {!teamState.currentClue.required_flag && (
+                                  <button
+                                    className="btn-pass"
+                                    onClick={() => { void passClue(); }}
+                                    disabled={isSubmitting || (teamState.skippedCount ?? 0) >= 5}
+                                  >Skip this clue</button>
+                                )}
+                              </div>
+                              <div className="passes-counter">
+                                {teamState.skippedCount ?? 0} of 5 passes used
+                                {(teamState.skippedCount ?? 0) >= 5 && <span className="passes-exhausted"> · No passes remaining</span>}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="member-notice">
+                              Only your team captain can submit answers or skip clues.
+                            </div>
+                          )}
+                        </>
                       )}
                     </>
                   ) : (
@@ -1312,30 +1369,27 @@ function App() {
                     <h2 className="info-title">🗺️ How to Play</h2>
                     <div className="info-body">
                       <p>Welcome to <strong>Boyz Weekend 2026</strong> — a live scavenger hunt across San Francisco!</p>
-                      <h3>The Basics</h3>
+                      <h3>Getting Started</h3>
                       <ul>
-                        <li>Four teams race to solve <strong>12 clues</strong> hidden across the city.</li>
-                        <li>All teammates see the same current clue at the same time.</li>
-                        <li>Only the <strong>👑 Captain</strong> can submit answers, skip clues, or use sabotage.</li>
+                        <li>Enter your name and team, then wait. The Dictator will start the hunt and notify your captain.</li>
+                        <li>Each team starts on a <strong>different clue</strong> — you won't see anyone else's progress until the leaderboard updates.</li>
+                        <li>Only the <strong>👑 Captain</strong> can reveal clues, submit answers, and use passes.</li>
                       </ul>
                       <h3>Solving a Clue</h3>
                       <ul>
-                        <li>Read the clue carefully and find the location or answer.</li>
-                        <li>Some clues require a <strong>QR code scan</strong> at the spot — tap "Scan QR Code".</li>
-                        <li>Submit a photo, video, or text description as proof.</li>
+                        <li>When a new clue is ready, tap <strong>Reveal Clue →</strong> to see it. Rally your team first!</li>
+                        <li>Find the location or answer described in the clue.</li>
+                        <li>Submit a <strong>photo with at least 2 team members</strong> in it as proof. Text clues still accept a text answer.</li>
                         <li>An AI judge instantly reviews your submission. If it's unclear, an admin reviews it.</li>
                       </ul>
-                      <h3>Transport</h3>
+                      <h3>The Last Two Clues</h3>
                       <ul>
-                        <li>🚶 Most early clues are on foot.</li>
-                        <li>🚗 One clue requires a <strong>Waymo</strong> ride — book it when you see the banner.</li>
-                        <li>🚃 One clue requires the <strong>Cable Car</strong> to Buena Vista Bar.</li>
+                        <li>Clues 11 and 12 are given to you <strong>in person by the Dictator</strong> — no reveal button, just find him.</li>
                       </ul>
                       <h3>Scoring &amp; Winning</h3>
                       <ul>
                         <li>Each clue awards points. Speed and accuracy matter.</li>
-                        <li>Complete at least <strong>7 clues</strong> to be eligible to win.</li>
-                        <li>You can skip up to <strong>5 optional clues</strong> — REQUIRED clues cannot be skipped.</li>
+                        <li>You can pass up to <strong>5 optional clues</strong> — REQUIRED clues cannot be passed.</li>
                         <li>Final score on the leaderboard determines the winner.</li>
                       </ul>
                       <h3>Sabotage</h3>
@@ -1352,16 +1406,13 @@ function App() {
                     <h2 className="info-title">📋 Rules</h2>
                     <div className="info-body">
                       <ol>
-                        <li>Each team has exactly <strong>one captain</strong>. Only the captain can submit answers, skip clues, or trigger sabotage.</li>
-                        <li>Teams must complete <strong>at least 7 clues</strong> to be eligible to win.</li>
-                        <li>You may skip up to <strong>5 optional clues</strong>. <strong>REQUIRED clues cannot be skipped.</strong></li>
-                        <li>You must <strong>physically be at the location</strong> to scan QR codes — no sharing QR codes between teams.</li>
+                        <li>Each team has exactly <strong>one captain</strong>. Only the captain can reveal clues, submit answers, pass clues, or trigger sabotage.</li>
+                        <li>You may pass up to <strong>5 optional clues</strong>. <strong>REQUIRED clues cannot be passed.</strong></li>
+                        <li>Photo submissions must show <strong>at least 2 team members</strong> in the photo.</li>
                         <li><strong>No sharing answers</strong> with other teams. Each team must solve clues independently.</li>
                         <li>Do not travel to a future clue location before unlocking it.</li>
-                        <li>Photo and video submissions must show your <strong>whole team</strong> unless the clue specifies otherwise.</li>
+                        <li>Clues 11 and 12 are delivered in person by the Dictator — the app will tell you when to find him.</li>
                         <li>AI verdicts are instant. Admin overrides are final.</li>
-                        <li>Screenshots of clues will be flagged as a security event and may result in point deductions.</li>
-                        <li>Required transport modes (<strong>Waymo</strong>, <strong>Cable Car</strong>) must be used — no substitutes.</li>
                         <li>Disputes must be raised with the admin via the Get Help screen.</li>
                         <li className="rule-final"><strong>The Dictator's decision is always final.</strong></li>
                       </ol>
@@ -1380,10 +1431,6 @@ function App() {
                       <div className="faq-item">
                         <div className="faq-q">I can't join my team</div>
                         <div className="faq-a">Enter your team name (SPADES, HEARTS, DIAMONDS, or CLUBS). Captains must also enter their 6-digit PIN. Members leave the PIN blank.</div>
-                      </div>
-                      <div className="faq-item">
-                        <div className="faq-q">The QR code won't scan</div>
-                        <div className="faq-a">Allow camera access when prompted. Make sure you are physically at the correct location — QR scans are validated server-side and will fail if you're at the wrong clue.</div>
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">Our submission keeps getting FAIL</div>
