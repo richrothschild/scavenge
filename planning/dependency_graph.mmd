@@ -1,0 +1,62 @@
+flowchart LR
+  SCAV200[SCAV-200 Fair Start & Anti-Cheat Epic]
+  SCAV300[SCAV-300 Live Ops & Reliability Epic]
+
+  SCAV201[SCAV-201 DB schema foundations]
+  SCAV202[SCAV-202 Admin start waves API]
+  SCAV203[SCAV-203 Start gate enforcement]
+  SCAV204[SCAV-204 Team start-state endpoint]
+  SCAV205[SCAV-205 Geofence rule model]
+  SCAV206[SCAV-206 Location-check endpoint]
+  SCAV207[SCAV-207 Anti-cheat signal engine]
+  SCAV208[SCAV-208 Admin anti-cheat APIs]
+  SCAV209[SCAV-209 Submit idempotency]
+  SCAV210[SCAV-210 Admin anti-cheat UI]
+  SCAV211[SCAV-211 OpenAPI + integration tests]
+  SCAV212[SCAV-212 Sprint 1 prod rollout]
+
+  SCAV301[SCAV-301 Scheduled hints schema]
+  SCAV302[SCAV-302 Hint request APIs]
+  SCAV303[SCAV-303 Announcements + receipts]
+  SCAV304[SCAV-304 Announcement UI]
+  SCAV305[SCAV-305 Incident mode backend]
+  SCAV306[SCAV-306 Incident mode UI]
+  SCAV307[SCAV-307 Ops dashboard API]
+  SCAV308[SCAV-308 Offline-safe retry queue]
+  SCAV309[SCAV-309 Smoke scripts + runbook updates]
+  SCAV310[SCAV-310 E2E + load validation]
+  SCAV311[SCAV-311 Game-day rehearsal]
+
+  SCAV200 --> SCAV201
+  SCAV201 --> SCAV202
+  SCAV202 --> SCAV203
+  SCAV202 --> SCAV204
+  SCAV201 --> SCAV205
+  SCAV205 --> SCAV206
+  SCAV206 --> SCAV207
+  SCAV207 --> SCAV208
+  SCAV201 --> SCAV209
+  SCAV208 --> SCAV210
+  SCAV203 --> SCAV211
+  SCAV206 --> SCAV211
+  SCAV208 --> SCAV211
+  SCAV209 --> SCAV211
+  SCAV211 --> SCAV212
+
+  SCAV212 --> SCAV300
+  SCAV300 --> SCAV301
+  SCAV301 --> SCAV302
+  SCAV212 --> SCAV303
+  SCAV303 --> SCAV304
+  SCAV212 --> SCAV305
+  SCAV305 --> SCAV306
+  SCAV305 --> SCAV307
+  SCAV209 --> SCAV308
+  SCAV305 --> SCAV308
+  SCAV302 --> SCAV309
+  SCAV303 --> SCAV309
+  SCAV305 --> SCAV309
+  SCAV304 --> SCAV310
+  SCAV306 --> SCAV310
+  SCAV308 --> SCAV310
+  SCAV310 --> SCAV311
