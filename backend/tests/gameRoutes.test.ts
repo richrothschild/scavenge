@@ -114,6 +114,21 @@ test("member cannot submit clues", async () => {
   assert.match(submitResponse.body.error, /captains/i);
 });
 
+test("join endpoint accepts short suit team names", async () => {
+  const { seed, http } = await setup();
+  const team = seed.teams[0];
+  const shortTeamName = team.join_code.split("-")[0];
+
+  const joinResponse = await http.post("/api/auth/join").send({
+    joinCode: shortTeamName,
+    displayName: "Suit Login Tester"
+  });
+
+  assert.equal(joinResponse.status, 200);
+  assert.equal(joinResponse.body.team.teamName, team.name);
+  assert.equal(joinResponse.body.session.role, "MEMBER");
+});
+
 test("join endpoint enforces rate limits", async () => {
   const { seed, http } = await setupWithRateLimits({
     joinWindowMs: 60_000,

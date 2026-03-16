@@ -758,13 +758,21 @@ button {
 .faq-a { color: #94a3b8; font-size: 0.85rem; line-height: 1.55; }
 
 /* Contact the Dictator button */
+.dictator-actions {
+  margin-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
 .btn-dictator {
   display: block;
-  margin-top: 1.25rem;
   background: #F2552C;
   color: #fff;
   text-align: center;
   text-decoration: none;
+  border: none;
+  cursor: pointer;
   border-radius: 12px;
   padding: 0.9rem 1rem;
   font-size: 1rem;
@@ -773,6 +781,14 @@ button {
   transition: background 0.15s;
 }
 .btn-dictator:hover { background: #d44424; }
+
+.btn-dictator--test {
+  background: #1d4ed8;
+}
+
+.btn-dictator--test:hover {
+  background: #1e40af;
+}
 
 /* Extra bottom padding so content isn't hidden behind help bar */
 .join-screen  { padding-bottom: 5rem; }

@@ -331,7 +331,13 @@ export class GameEngine {
     this.auditLogs = [...snapshot.auditLogs];
     snapshot.teams.forEach((team) => {
       this.teamsById.set(team.teamId, team);
-      this.teamByJoinCode.set(team.joinCode.toUpperCase(), team);
+      const fullJoinCode = team.joinCode.toUpperCase();
+      this.teamByJoinCode.set(fullJoinCode, team);
+
+      const shortJoinCode = fullJoinCode.includes("-") ? fullJoinCode.split("-")[0] : fullJoinCode;
+      if (shortJoinCode && !this.teamByJoinCode.has(shortJoinCode)) {
+        this.teamByJoinCode.set(shortJoinCode, team);
+      }
     });
   }
 
@@ -377,7 +383,8 @@ export class GameEngine {
   }
 
   joinTeam(joinCode: string, displayName: string, captainPin?: string) {
-    const team = this.teamByJoinCode.get(joinCode.toUpperCase());
+    const normalizedJoinCode = joinCode.trim().toUpperCase();
+    const team = this.teamByJoinCode.get(normalizedJoinCode);
     if (!team) return { error: "Invalid join code." as const };
     let role: ParticipantRole = "MEMBER";
     if (captainPin) {

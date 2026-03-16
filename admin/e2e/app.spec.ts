@@ -42,3 +42,22 @@ test("admin can refresh leaderboard", async ({ page }) => {
   await expect(page.getByText("Leaderboard Snapshot")).toBeVisible();
   await expect(page.getByText("SPADES", { exact: false })).toBeVisible();
 });
+
+test("help screen dictator links open SMS composer", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Get Help" }).click();
+
+  const contactLink = page.getByRole("link", { name: /Contact the Dictator/i });
+  await expect(contactLink).toBeVisible();
+
+  const contactHref = await contactLink.getAttribute("href");
+  expect(contactHref).toContain("sms:4086054832");
+  expect(contactHref).toContain("SCAVENGE%20HELP%20REQUEST");
+
+  const testLink = page.getByRole("link", { name: /Send Test Text/i });
+  await expect(testLink).toBeVisible();
+
+  const testHref = await testLink.getAttribute("href");
+  expect(testHref).toContain("sms:4086054832");
+  expect(testHref).toContain("SCAVENGE%20TEST");
+});

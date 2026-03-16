@@ -21,6 +21,12 @@ const apiBase =
     ? "https://scavenge-backend-production.up.railway.app/api"
     : "http://localhost:3001/api");
 const socketBase = apiBase.endsWith("/api") ? apiBase.slice(0, -4) : apiBase;
+const DICTATOR_PHONE_NUMBER = "4086054832";
+
+const normalizeTeamCodeInput = (value: string) => {
+  const normalized = value.trim().toUpperCase();
+  return normalized.includes("-") ? (normalized.split("-")[0] ?? normalized) : normalized;
+};
 
 type ReviewQueueItem = {
   id: string;
@@ -70,7 +76,7 @@ function App() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
   const [mode] = useState<"player" | "admin">(isAdminPath ? "admin" : "player");
   const [adminView, setAdminView] = useState<"setup" | "live-ops">("live-ops");
-  const [joinCode, setJoinCode] = useState("SPADES-AJ29LN");
+  const [joinCode, setJoinCode] = useState("SPADES");
   const [displayName, setDisplayName] = useState("");
   const [captainPin, setCaptainPin] = useState("");
   const [authToken, setAuthToken] = useState("");
@@ -283,6 +289,41 @@ function App() {
     return parts[parts.length - 1] || value;
   };
 
+  const buildDictatorSmsBody = (isTest: boolean) => {
+    const teamName = normalizeTeamCodeInput(teamState?.teamName ?? joinCode) || "UNKNOWN";
+    const clueNumber = (teamState?.currentClueIndex ?? 0) + 1;
+
+    if (isTest) {
+      return `SCAVENGE TEST\nTeam: ${teamName}\nClue: ${clueNumber}\nPlease ignore - this is a test text from the Help screen.`;
+    }
+
+    return `SCAVENGE HELP REQUEST\nTeam: ${teamName}\nClue: ${clueNumber}\nIssue: `;
+  };
+
+  const buildDictatorSmsHref = (isTest: boolean) => {
+    const body = buildDictatorSmsBody(isTest);
+    const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    return `sms:${DICTATOR_PHONE_NUMBER}${isIos ? "&" : "?"}body=${encodeURIComponent(body)}`;
+  };
+
+  const handleDictatorClick = async (isTest: boolean) => {
+    const body = buildDictatorSmsBody(isTest);
+
+    try {
+      const isDesktop = !/Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      if (isDesktop && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(`To: ${DICTATOR_PHONE_NUMBER}\n\n${body}`);
+        addToast("info", "Copied phone number + message to clipboard for desktop texting.");
+      }
+
+      setStatusMessage(isTest ? "Opening test text composer for the Dictator." : "Opening help text composer for the Dictator.");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Unable to open text composer: ${reason}`);
+      addToast("error", "Could not open texting app. Please contact the Dictator manually.");
+    }
+  };
+
   const joinTeam = async (event: FormEvent) => {
     event.preventDefault();
     const endpoint = `${apiBase}/auth/join`;
@@ -293,7 +334,7 @@ function App() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          joinCode,
+          joinCode: normalizeTeamCodeInput(joinCode),
           displayName,
           captainPin: captainPin.trim() ? captainPin : undefined
         })
@@ -1146,13 +1187,13 @@ function App() {
               )}
 
               <form onSubmit={joinTeam} className="join-form">
-                <label className="field-label">Team code</label>
+                <label className="field-label">Team name</label>
                 <input
                   data-testid="join-code-input"
                   className="join-input"
                   value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value)}
-                  placeholder="e.g. SPADES-AJ29LN"
+                  onChange={(e) => setJoinCode(normalizeTeamCodeInput(e.target.value))}
+                  placeholder="e.g. SPADES"
                   autoCapitalize="characters"
                   autoCorrect="off"
                   spellCheck={false}
@@ -1540,7 +1581,7 @@ function App() {
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">I can't join my team</div>
-                        <div className="faq-a">Double-check your team join code (e.g. SPADES-AJ29LN). Captains must also enter their 6-digit PIN. Members leave the PIN blank.</div>
+                        <div className="faq-a">Enter your team name (SPADES, HEARTS, DIAMONDS, or CLUBS). Captains must also enter their 6-digit PIN. Members leave the PIN blank.</div>
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">The QR code won't scan</div>
@@ -1571,12 +1612,22 @@ function App() {
                         <div className="faq-a">Use the button below to alert the Dictator directly.</div>
                       </div>
 
-                      <a
-                        className="btn-dictator"
-                        href={`sms:4086054832?body=${encodeURIComponent("A team needs your help. If it is your team help them. If it is not, don't")}`}
-                      >
-                        📲 Contact the Dictator
-                      </a>
+                      <div className="dictator-actions">
+                        <a
+                          className="btn-dictator"
+                          href={buildDictatorSmsHref(false)}
+                          onClick={() => { void handleDictatorClick(false); }}
+                        >
+                          📲 Contact the Dictator
+                        </a>
+                        <a
+                          className="btn-dictator btn-dictator--test"
+                          href={buildDictatorSmsHref(true)}
+                          onClick={() => { void handleDictatorClick(true); }}
+                        >
+                          Send Test Text
+                        </a>
+                      </div>
                     </div>
                   </>
                 )}
