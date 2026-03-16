@@ -51,13 +51,35 @@ const setupWithRateLimits = async (authRateLimitConfig: AuthRateLimitConfig) => 
   return { seed, gameEngine, http, emissions: ioSpy.emissions };
 };
 
-const joinAsCaptain = async (http: SuperTest<Test>, joinCode: string, captainPin: string) => {
+const teamIdFromJoinCode = (joinCode: string) => joinCode.trim().toUpperCase().split("-")[0]!.toLowerCase();
+
+const assignParticipant = async (http: SuperTest<Test>, joinCode: string, participantName: string) => {
+  const adminToken = await loginAsAdmin(http);
+  const response = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: teamIdFromJoinCode(joinCode), participantName });
+  assert.equal(response.status, 200);
+};
+
+const joinAssignedParticipant = async (
+  http: SuperTest<Test>,
+  joinCode: string,
+  displayName: string,
+  captainPin?: string
+) => {
+  await assignParticipant(http, joinCode, displayName);
   const response = await http.post("/api/auth/join").send({
     joinCode,
-    displayName: "Captain Tester",
+    displayName,
     captainPin
   });
   assert.equal(response.status, 200);
+  return response;
+};
+
+const joinAsCaptain = async (http: SuperTest<Test>, joinCode: string, captainPin: string) => {
+  const response = await joinAssignedParticipant(http, joinCode, "Captain Tester", captainPin);
   return response.body.session.token as string;
 };
 
@@ -97,12 +119,8 @@ test("member cannot submit clues", async () => {
   const { seed, http } = await setup();
   const team = seed.teams[0];
 
-  const joinResponse = await http.post("/api/auth/join").send({
-    joinCode: team.join_code,
-    displayName: "Member Tester"
-  });
+  const joinResponse = await joinAssignedParticipant(http, team.join_code, "Member Tester");
 
-  assert.equal(joinResponse.status, 200);
   assert.equal(joinResponse.body.session.role, "MEMBER");
 
   const submitResponse = await http
@@ -119,14 +137,56 @@ test("join endpoint accepts short suit team names", async () => {
   const team = seed.teams[0];
   const shortTeamName = team.join_code.split("-")[0];
 
-  const joinResponse = await http.post("/api/auth/join").send({
-    joinCode: shortTeamName,
-    displayName: "Suit Login Tester"
-  });
+  const joinResponse = await joinAssignedParticipant(http, shortTeamName, "Suit Login Tester");
 
-  assert.equal(joinResponse.status, 200);
   assert.equal(joinResponse.body.team.teamName, team.name);
   assert.equal(joinResponse.body.session.role, "MEMBER");
+});
+
+test("join endpoint rejects unassigned participants", async () => {
+  const { seed, http } = await setup();
+  const team = seed.teams[0];
+
+  const joinResponse = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Not Assigned"
+  });
+
+  assert.equal(joinResponse.status, 401);
+  assert.match(joinResponse.body.error, /assigned name/i);
+});
+
+test("admin can assign and move participants between teams", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const firstTeam = seed.teams[0];
+  const secondTeam = seed.teams[1];
+
+  const assignFirst = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: firstTeam.name.toLowerCase(), participantName: "Roster Tester" });
+  assert.equal(assignFirst.status, 200);
+  assert.equal(assignFirst.body.movedFromTeamId, null);
+
+  const assignSecond = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: secondTeam.name.toLowerCase(), participantName: "Roster Tester" });
+  assert.equal(assignSecond.status, 200);
+  assert.equal(assignSecond.body.movedFromTeamId, firstTeam.name.toLowerCase());
+
+  const rosterResponse = await http
+    .get("/api/admin/team-assignments")
+    .set("x-admin-token", adminToken);
+  assert.equal(rosterResponse.status, 200);
+
+  const firstRoster = rosterResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === firstTeam.name.toLowerCase());
+  const secondRoster = rosterResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === secondTeam.name.toLowerCase());
+  assert.ok(firstRoster);
+  assert.ok(secondRoster);
+  assert.ok(!firstRoster.assignedParticipants.includes("Roster Tester"));
+  assert.ok(secondRoster.assignedParticipants.includes("Roster Tester"));
 });
 
 test("join endpoint enforces rate limits", async () => {
@@ -143,6 +203,10 @@ test("join endpoint enforces rate limits", async () => {
     sabotageTriggerMax: 20
   });
   const team = seed.teams[0];
+
+  await assignParticipant(http, team.join_code, "Rate Limit Member 1");
+  await assignParticipant(http, team.join_code, "Rate Limit Member 2");
+  await assignParticipant(http, team.join_code, "Rate Limit Member 3");
 
   const firstJoin = await http.post("/api/auth/join").send({
     joinCode: team.join_code,
