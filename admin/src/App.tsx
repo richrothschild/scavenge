@@ -63,6 +63,9 @@ type RealtimeEventItem = {
   message: string;
 };
 
+type AdminClueSource = "test" | "production";
+type AdminClueResolvedSource = AdminClueSource | "active" | "default";
+
 function App() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
   const [mode] = useState<"player" | "admin">(isAdminPath ? "admin" : "player");
@@ -134,6 +137,13 @@ function App() {
   const qrIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // ── Admin clues (for QR print) ────────────────────────────────
   const [adminClues, setAdminClues] = useState<any[]>([]);
+  const [adminClueSource, setAdminClueSource] = useState<AdminClueSource>("production");
+  const [adminClueResolvedSource, setAdminClueResolvedSource] = useState<AdminClueResolvedSource>("active");
+  const [adminClueFallbackToDefault, setAdminClueFallbackToDefault] = useState(false);
+  const [adminClueSourceFile, setAdminClueSourceFile] = useState("");
+  const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
+  const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
+  const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
   // ── Verdict reveal overlay ────────────────────────────────────
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
@@ -212,8 +222,32 @@ function App() {
   }, [auditLogsLimit, auditLogsOffset, auditLogsTotal]);
 
   const parseError = async (response: Response, fallback: string) => {
-    const payload = await response.json();
-    return payload.error || fallback;
+    let rawBody = "";
+    try {
+      rawBody = await response.text();
+    } catch {
+      return `${fallback} (HTTP ${response.status})`;
+    }
+
+    if (!rawBody.trim()) {
+      return `${fallback} (HTTP ${response.status})`;
+    }
+
+    try {
+      const payload = JSON.parse(rawBody) as { error?: string };
+      if (typeof payload.error === "string" && payload.error.trim()) {
+        return payload.error;
+      }
+    } catch {
+      // Non-JSON responses are surfaced as plain text for better diagnostics.
+    }
+
+    return rawBody.length > 240 ? `${fallback} (HTTP ${response.status})` : rawBody;
+  };
+
+  const formatNetworkError = (action: string, endpoint: string, error: unknown) => {
+    const reason = error instanceof Error ? error.message : String(error);
+    return `${action} failed at ${endpoint}. Reason: ${reason}. Check API URL and CORS allow-list.`;
   };
 
   const appendRealtimeEvent = (event: string, message: string) => {
@@ -244,22 +278,37 @@ function App() {
     return null;
   };
 
+  const toFileName = (value: string) => {
+    const parts = value.split(/[/\\]/);
+    return parts[parts.length - 1] || value;
+  };
+
   const joinTeam = async (event: FormEvent) => {
     event.preventDefault();
-    const response = await fetch(`${apiBase}/auth/join`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        joinCode,
-        displayName,
-        captainPin: captainPin.trim() ? captainPin : undefined
-      })
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatusMessage(payload.error || "Join failed");
+    const endpoint = `${apiBase}/auth/join`;
+    let response: Response;
+
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          joinCode,
+          displayName,
+          captainPin: captainPin.trim() ? captainPin : undefined
+        })
+      });
+    } catch (error) {
+      setStatusMessage(formatNetworkError("Join", endpoint, error));
       return;
     }
+
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Join failed"));
+      return;
+    }
+
+    const payload = await response.json();
     setAuthToken(payload.session.token);
     setRole(payload.session.role);
     setTeamId(payload.session.teamId);
@@ -457,16 +506,98 @@ function App() {
     await refreshTeamState();
   };
 
-  const fetchAdminClues = async () => {
-    const response = await fetch(`${apiBase}/admin/clues`, { headers: { "Content-Type": "application/json", "x-admin-token": adminToken } });
+  const fetchAdminClues = async (source: AdminClueSource = adminClueSource) => {
+    const response = await fetch(`${apiBase}/admin/clues?source=${source}`, { headers: { "Content-Type": "application/json", "x-admin-token": adminToken } });
     const payload = await response.json();
-    if (response.ok) setAdminClues(payload.clues || []);
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Failed to load admin clues");
+      return;
+    }
+
+    setAdminClues(payload.clues || []);
+    setAdminClueSource(source);
+    if (payload.resolvedSource === "test" || payload.resolvedSource === "production" || payload.resolvedSource === "active" || payload.resolvedSource === "default") {
+      setAdminClueResolvedSource(payload.resolvedSource);
+    }
+    setAdminClueFallbackToDefault(Boolean(payload.fallbackToDefault));
+    setAdminClueSourceFile(typeof payload.sourceFile === "string" ? payload.sourceFile : "");
+
+    if (payload.fallbackToDefault) {
+      setStatusMessage(`Loaded ${source} clues from default seed-config.json (missing ${source} seed file).`);
+      return;
+    }
+
+    setStatusMessage(`Loaded ${source} clues.`);
   };
 
   const fetchSabotageCatalog = async () => {
     const response = await fetch(`${apiBase}/sabotage/catalog`, { headers });
     const payload = await response.json();
     if (response.ok) setSabotageCatalog(payload.items || []);
+  };
+
+  const uploadAdminCluesFile = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!adminClueUploadFile) {
+      setStatusMessage("Select a JSON file to upload.");
+      return;
+    }
+
+    setAdminClueUploadBusy(true);
+    try {
+      let seedConfigPayload: unknown;
+      try {
+        const text = await adminClueUploadFile.text();
+        seedConfigPayload = JSON.parse(text);
+      } catch {
+        setStatusMessage("Invalid JSON file. Please upload a valid seed config JSON.");
+        return;
+      }
+
+      const response = await fetch(`${apiBase}/admin/clues/upload`, {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({ source: adminClueUploadSource, seedConfig: seedConfigPayload })
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        setStatusMessage(payload.error || "Failed to upload clue file.");
+        return;
+      }
+
+      setStatusMessage(`Uploaded ${adminClueUploadSource} clue file with ${payload.clueCount} clues.`);
+      setAdminClueSource(adminClueUploadSource);
+      await fetchAdminClues(adminClueUploadSource);
+    } finally {
+      setAdminClueUploadBusy(false);
+    }
+  };
+
+  const downloadAdminClueTemplate = async (source: AdminClueSource) => {
+    const response = await fetch(`${apiBase}/admin/clues/template?source=${source}`, { headers: adminHeaders });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Failed to download clue template.");
+      return;
+    }
+
+    const templateJson = `${JSON.stringify(payload.seedConfig, null, 2)}\n`;
+    const blob = new Blob([templateJson], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `seed-config.${source}.template.json`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(url);
+
+    if (payload.fallbackToDefault) {
+      setStatusMessage(`Downloaded ${source} template from default seed-config.json (missing ${source} variant file).`);
+      return;
+    }
+
+    setStatusMessage(`Downloaded ${source} clue template.`);
   };
 
   const triggerSabotage = async (actionId: string, targetTeamId: string) => {
@@ -529,9 +660,21 @@ function App() {
   };
 
   const fetchGameStatus = async () => {
-    const response = await fetch(`${apiBase}/game/status`);
+    const endpoint = `${apiBase}/game/status`;
+    let response: Response;
+    try {
+      response = await fetch(endpoint);
+    } catch (error) {
+      setStatusMessage(formatNetworkError("Game status fetch", endpoint, error));
+      return;
+    }
+
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Game status fetch failed"));
+      return;
+    }
+
     const payload = await response.json();
-    if (!response.ok) return setStatusMessage(payload.error || "Game status fetch failed");
     setGameStatus(payload);
   };
 
@@ -563,9 +706,21 @@ function App() {
   };
 
   const fetchLeaderboard = async () => {
-    const response = await fetch(`${apiBase}/leaderboard`);
+    const endpoint = `${apiBase}/leaderboard`;
+    let response: Response;
+    try {
+      response = await fetch(endpoint);
+    } catch (error) {
+      setStatusMessage(formatNetworkError("Leaderboard fetch", endpoint, error));
+      return;
+    }
+
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Leaderboard fetch failed"));
+      return;
+    }
+
     const payload = await response.json();
-    if (!response.ok) return setStatusMessage(payload.error || "Leaderboard fetch failed");
     setLeaderboard(payload.teams || []);
   };
 
@@ -993,6 +1148,7 @@ function App() {
               <form onSubmit={joinTeam} className="join-form">
                 <label className="field-label">Team code</label>
                 <input
+                  data-testid="join-code-input"
                   className="join-input"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value)}
@@ -1003,6 +1159,7 @@ function App() {
                 />
                 <label className="field-label">Your name</label>
                 <input
+                  data-testid="display-name-input"
                   className="join-input"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
@@ -1012,6 +1169,7 @@ function App() {
                   Captain PIN <span className="field-optional">(captains only — leave blank if member)</span>
                 </label>
                 <input
+                  data-testid="captain-pin-input"
                   className="join-input"
                   type="password"
                   inputMode="numeric"
@@ -1019,11 +1177,11 @@ function App() {
                   onChange={(e) => setCaptainPin(e.target.value)}
                   placeholder="6-digit PIN"
                 />
-                <button className="join-btn" type="submit">Join Hunt →</button>
+                <button data-testid="join-submit-btn" className="join-btn" type="submit">Join Hunt →</button>
               </form>
 
               {statusMessage && statusMessage !== "Ready" && (
-                <p className="join-error">{statusMessage}</p>
+                <p data-testid="join-status-message" className="join-error">{statusMessage}</p>
               )}
             </div>
           ) : (
@@ -1035,7 +1193,7 @@ function App() {
               )}
 
               {/* Header */}
-              <header className="player-header">
+              <header data-testid="player-header" className="player-header">
                 <div className="player-header__team">
                   {(() => { const th = getTeamTheme(); return th ? `${th.suit} ${th.fullName}` : `Team ${(teamState?.teamName ?? teamId).toUpperCase()}`; })()}
                   {role === "CAPTAIN" && <span className="captain-badge">👑 Captain</span>}
@@ -1488,8 +1646,8 @@ function App() {
         <section>
           <h2>Admin Ops</h2>
           <form onSubmit={adminLogin} className="panel">
-            <input value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Admin password" />
-            <button type="submit">Login Admin</button>
+            <input data-testid="admin-password-input" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} placeholder="Admin password" />
+            <button data-testid="admin-login-button" type="submit">Login Admin</button>
           </form>
 
           <div className="tabs admin-tabs">
@@ -1525,12 +1683,48 @@ function App() {
               </form>
 
               <h3>QR Codes</h3>
+              <form onSubmit={uploadAdminCluesFile} className="panel">
+                <select
+                  value={adminClueUploadSource}
+                  onChange={(event) => setAdminClueUploadSource(event.target.value as AdminClueSource)}
+                >
+                  <option value="production">Production clues</option>
+                  <option value="test">Test clues</option>
+                </select>
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={(event) => setAdminClueUploadFile(event.target.files?.[0] ?? null)}
+                />
+                <button type="submit" disabled={adminClueUploadBusy || !adminClueUploadFile}>
+                  {adminClueUploadBusy ? "Uploading…" : `Upload ${adminClueUploadSource} clue file`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void downloadAdminClueTemplate(adminClueUploadSource); }}
+                >
+                  Download {adminClueUploadSource} template
+                </button>
+              </form>
               <div className="panel">
-                <button onClick={() => { void fetchAdminClues(); }}>Load QR Codes</button>
+                <button onClick={() => { void fetchAdminClues(adminClueSource); }}>
+                  Load {adminClueSource === "test" ? "Test" : "Production"} QR Codes
+                </button>
+                <button onClick={() => { void fetchAdminClues(adminClueSource === "production" ? "test" : "production"); }}>
+                  Show {adminClueSource === "production" ? "Test" : "Production"} Clues
+                </button>
                 {adminClues.length > 0 && (
                   <button onClick={() => window.print()} style={{ marginLeft: "0.5rem" }}>🖨️ Print QR Sheet</button>
                 )}
               </div>
+              <p className="clue-source-meta">
+                Displaying <strong>{adminClueSource}</strong> clues
+                {adminClueFallbackToDefault ? " (fallback: default seed-config.json)" : ""}
+                {adminClueResolvedSource !== "active" ? ` · resolved source: ${adminClueResolvedSource}` : ""}
+              </p>
+              {adminClueSourceFile ? (
+                <p className="clue-source-meta">Source file: {toFileName(adminClueSourceFile)}</p>
+              ) : null}
               {adminClues.length > 0 && (
                 <div className="qr-grid printable">
                   {adminClues.map((clue: any) => (
