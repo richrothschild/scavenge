@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import path from "node:path";
 import test from "node:test";
 import request, { SuperTest, Test } from "supertest";
 import { AuthRateLimitConfig, createApp } from "../src/app";
@@ -52,6 +53,12 @@ const setupWithRateLimits = async (authRateLimitConfig: AuthRateLimitConfig) => 
 };
 
 const teamIdFromJoinCode = (joinCode: string) => joinCode.trim().toUpperCase().split("-")[0]!.toLowerCase();
+
+const resolveVariantPathForTests = (fileName: string) => {
+  const roots = [path.resolve(process.cwd(), ".."), path.resolve(process.cwd())];
+  const candidates = roots.map((root) => path.resolve(root, fileName));
+  return candidates.find((candidate) => fs.existsSync(candidate)) ?? candidates[0];
+};
 
 const assignParticipant = async (http: SuperTest<Test>, joinCode: string, participantName: string) => {
   const adminToken = await loginAsAdmin(http);
@@ -817,6 +824,10 @@ test("admin can upload test clue file and fetch it via source query", async () =
   };
 
   let uploadedPath = "";
+  const expectedUploadPath = resolveVariantPathForTests("seed-config.test.json");
+  const originalUploadContent = fs.existsSync(expectedUploadPath)
+    ? fs.readFileSync(expectedUploadPath, "utf-8")
+    : null;
 
   try {
     const uploadResponse = await http
@@ -842,7 +853,73 @@ test("admin can upload test clue file and fetch it via source query", async () =
     assert.equal(cluesResponse.body.fallbackToDefault, false);
     assert.equal(cluesResponse.body.clues[0]?.title, uploadedTitle);
   } finally {
-    if (uploadedPath) {
+    if (originalUploadContent !== null) {
+      fs.writeFileSync(expectedUploadPath, originalUploadContent, "utf-8");
+    } else if (uploadedPath) {
+      fs.rmSync(uploadedPath, { force: true });
+    }
+  }
+});
+
+test("admin can upload schema v2 clue dataset and fetch converted clues", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const uploadPayload = {
+    schema_version: "2.0.0",
+    dataset_type: "scavenger_hunt",
+    environment: "test",
+    dataset_id: "adapter-upload-test",
+    metadata: {
+      name: "Adapter Upload Test",
+      timezone: "America/Los_Angeles"
+    },
+    scoring: {
+      default_points: 1,
+      special_points: {
+        "adapter-upload-2": 3
+      }
+    },
+    zones: [
+      { zone_id: "z1", name: "Zone 1", route_order: 1, transport_mode: "walk" },
+      { zone_id: "z2", name: "Zone 2", route_order: 2, transport_mode: "waymo" }
+    ],
+    clues: [
+      { id: "adapter-upload-1", route_order: 1, zone_id: "z1", title: "Converted One", theme: "Theme One", difficulty: "easy" },
+      { id: "adapter-upload-2", route_order: 2, zone_id: "z2", title: "Converted Two", theme: "Theme Two", difficulty: "medium" }
+    ]
+  };
+
+  let uploadedPath = "";
+  const expectedUploadPath = resolveVariantPathForTests("seed-config.test.json");
+  const originalUploadContent = fs.existsSync(expectedUploadPath)
+    ? fs.readFileSync(expectedUploadPath, "utf-8")
+    : null;
+
+  try {
+    const uploadResponse = await http
+      .post("/api/admin/clues/upload")
+      .set("x-admin-token", adminToken)
+      .send({ source: "test", seedConfig: uploadPayload });
+
+    assert.equal(uploadResponse.status, 200);
+    assert.equal(uploadResponse.body.source, "test");
+    assert.equal(uploadResponse.body.clueCount, 2);
+    uploadedPath = uploadResponse.body.sourceFile as string;
+
+    const cluesResponse = await http
+      .get("/api/admin/clues?source=test")
+      .set("x-admin-token", adminToken);
+
+    assert.equal(cluesResponse.status, 200);
+    assert.equal(cluesResponse.body.requestedSource, "test");
+    assert.equal(cluesResponse.body.clues[0]?.title, "Converted One");
+    assert.equal(cluesResponse.body.clues[0]?.requires_scan, false);
+    assert.equal(cluesResponse.body.clues[1]?.base_points, 300);
+  } finally {
+    if (originalUploadContent !== null) {
+      fs.writeFileSync(expectedUploadPath, originalUploadContent, "utf-8");
+    } else if (uploadedPath) {
       fs.rmSync(uploadedPath, { force: true });
     }
   }
@@ -858,7 +935,7 @@ test("admin clue upload rejects invalid payload", async () => {
     .send({ source: "test", seedConfig: { clues: [] } });
 
   assert.equal(response.status, 400);
-  assert.match(response.body.error, /invalid seed upload payload/i);
+  assert.match(response.body.error, /invalid seed upload payload|unsupported seed config format/i);
 });
 
 test("admin clue template endpoint returns seed config", async () => {

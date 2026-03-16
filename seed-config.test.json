@@ -1,0 +1,151 @@
+{
+  "schema_version": "2.0.0",
+  "dataset_type": "scavenger_hunt",
+  "environment": "test",
+  "dataset_id": "sf-waterfront-buena-vista-2026-test",
+  "metadata": {
+    "name": "San Francisco Waterfront Scavenger Hunt (Test)",
+    "city": "San Francisco",
+    "state": "CA",
+    "country": "USA",
+    "timezone": "America/Los_Angeles",
+    "start_location": {
+      "name": "Hotel Zephyr",
+      "address": "250 Beach St, San Francisco, CA"
+    },
+    "finish_location": {
+      "name": "Buena Vista Cafe",
+      "address": "2765 Hyde St, San Francisco, CA"
+    },
+    "target_duration_minutes": 90,
+    "minimum_clues_to_finish": 5,
+    "transport_modes": [
+      "walk",
+      "waymo",
+      "cable_car"
+    ]
+  },
+  "scoring": {
+    "default_points": 1,
+    "special_points": {
+      "sf-test-001": 2,
+      "sf-test-finale-001": 2,
+      "sf-test-tiebreak-001": 3
+    },
+    "hint_penalty_model": {
+      "enabled": true,
+      "rules": [
+        {
+          "clue_id": "sf-test-001",
+          "hint_reduces_points_to": 1
+        }
+      ]
+    },
+    "tie_breaker": {
+      "type": "highest_points_then_fastest_finish",
+      "fallback_clue_id": "sf-test-tiebreak-001"
+    }
+  },
+  "zones": [
+    {
+      "zone_id": "zone-1",
+      "name": "Pier 39 / Hotel Zephyr",
+      "route_order": 1,
+      "transport_mode": "walk"
+    },
+    {
+      "zone_id": "zone-2",
+      "name": "Aquatic Park",
+      "route_order": 2,
+      "transport_mode": "walk"
+    },
+    {
+      "zone_id": "zone-3",
+      "name": "Hyde Street Pier",
+      "route_order": 3,
+      "transport_mode": "walk"
+    },
+    {
+      "zone_id": "zone-4",
+      "name": "Waymo Segment",
+      "route_order": 4,
+      "transport_mode": "waymo"
+    },
+    {
+      "zone_id": "zone-5",
+      "name": "Cable Car to Buena Vista",
+      "route_order": 5,
+      "transport_mode": "cable_car"
+    }
+  ],
+  "transport_segments": [
+    {
+      "segment_id": "transport-test-001",
+      "type": "waymo",
+      "pickup_area": "Hyde Street Pier",
+      "dropoff_area": "1083 Lombard St"
+    },
+    {
+      "segment_id": "transport-test-002",
+      "type": "cable_car",
+      "line": "Powell-Hyde",
+      "destination": "Hyde & Beach turnaround"
+    }
+  ],
+  "clues": [
+    {
+      "id": "sf-test-001",
+      "route_order": 1,
+      "zone_id": "zone-1",
+      "title": "Gold Rush Ground",
+      "theme": "Gold Rush landfill",
+      "difficulty": "hard",
+      "points": 2
+    },
+    {
+      "id": "sf-test-002",
+      "route_order": 2,
+      "zone_id": "zone-2",
+      "title": "Federal Concrete",
+      "theme": "WPA construction",
+      "difficulty": "medium",
+      "points": 1
+    },
+    {
+      "id": "sf-test-003",
+      "route_order": 3,
+      "zone_id": "zone-3",
+      "title": "Silent Pacific",
+      "theme": "WWII submarine",
+      "difficulty": "medium",
+      "points": 1
+    },
+    {
+      "id": "sf-test-004",
+      "route_order": 4,
+      "zone_id": "zone-4",
+      "title": "Waymo Transition",
+      "theme": "Autonomous ride",
+      "difficulty": "medium",
+      "points": 1
+    },
+    {
+      "id": "sf-test-finale-001",
+      "route_order": 5,
+      "zone_id": "zone-5",
+      "title": "Improvisation and Geography",
+      "theme": "Grateful Dead",
+      "difficulty": "medium",
+      "points": 2
+    },
+    {
+      "id": "sf-test-tiebreak-001",
+      "route_order": 99,
+      "zone_id": "zone-5",
+      "title": "Loma Prieta Synthesis",
+      "theme": "1989 earthquake",
+      "difficulty": "very_hard",
+      "points": 3
+    }
+  ]
+}

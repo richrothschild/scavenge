@@ -38,6 +38,40 @@ type SeedSabotageAction = {
   effect_duration_seconds?: number;
 };
 
+type SeedConfigV2Zone = {
+  zone_id: string;
+  name?: string;
+  route_order?: number;
+  transport_mode?: string;
+};
+
+type SeedConfigV2Clue = {
+  id: string;
+  route_order: number;
+  zone_id?: string;
+  title?: string;
+  theme?: string;
+  difficulty?: string;
+  points?: number;
+};
+
+type SeedConfigV2 = {
+  schema_version: string;
+  dataset_type?: string;
+  environment?: string;
+  dataset_id?: string;
+  metadata?: {
+    name?: string;
+    timezone?: string;
+  };
+  scoring?: {
+    default_points?: number;
+    special_points?: Record<string, number>;
+  };
+  zones?: SeedConfigV2Zone[];
+  clues?: SeedConfigV2Clue[];
+};
+
 export type SeedConfig = {
   game: { name: string; status: GameStatus; timezone: string };
   teams: SeedTeam[];
@@ -176,6 +210,115 @@ const DEFAULT_SCAN_EXPIRY_SECONDS = 120;
 const buildTeamId = (name: TeamName) => name.toLowerCase();
 const buildRotatedQrId = (clueIndex: number) => `CLUE-${clueIndex + 1}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null;
+};
+
+const isLegacySeedConfig = (value: unknown): value is SeedConfig => {
+  if (!isRecord(value)) return false;
+  return isRecord(value.game) && Array.isArray(value.teams) && Array.isArray(value.clues);
+};
+
+const isSeedConfigV2 = (value: unknown): value is SeedConfigV2 => {
+  if (!isRecord(value)) return false;
+  return typeof value.schema_version === "string" && value.schema_version.startsWith("2.") && Array.isArray(value.clues);
+};
+
+const normalizeTransportMode = (value: string | undefined): SeedClue["transport_mode"] => {
+  const normalized = (value ?? "").trim().toUpperCase().replace("-", "_");
+  if (normalized === "WALK" || normalized === "WAYMO" || normalized === "CABLE_CAR") {
+    return normalized;
+  }
+
+  return "NONE";
+};
+
+const sanitizeQrPublicId = (raw: string) => {
+  const normalized = raw.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "-");
+  return normalized || "CLUE-UNKNOWN";
+};
+
+const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): SeedConfig => {
+  const fallbackTeams = fallbackSeed?.teams ?? [];
+  if (fallbackTeams.length === 0) {
+    throw new Error("Schema v2 dataset requires fallback team credentials from seed-config.json.");
+  }
+
+  const zonesById = new Map<string, SeedConfigV2Zone>();
+  for (const zone of value.zones ?? []) {
+    zonesById.set(zone.zone_id, zone);
+  }
+
+  const defaultPoints = Number.isFinite(value.scoring?.default_points)
+    ? Math.max(1, Number(value.scoring?.default_points))
+    : 1;
+  const specialPoints = value.scoring?.special_points ?? {};
+
+  const clues: SeedClue[] = [...(value.clues ?? [])]
+    .filter((clue) => Number.isFinite(clue.route_order))
+    .sort((a, b) => a.route_order - b.route_order)
+    .map((clue, index) => {
+      const zone = clue.zone_id ? zonesById.get(clue.zone_id) : undefined;
+      const transportMode = normalizeTransportMode(zone?.transport_mode);
+      const loweredIdentity = `${clue.id} ${clue.title ?? ""}`.toLowerCase();
+      const isFinal = loweredIdentity.includes("final") || loweredIdentity.includes("finale") || clue.route_order >= 11;
+      const isSpecialTransport = transportMode === "WAYMO" || transportMode === "CABLE_CAR";
+      const pointWeight = Number.isFinite(clue.points)
+        ? Number(clue.points)
+        : (Number.isFinite(specialPoints[clue.id]) ? Number(specialPoints[clue.id]) : defaultPoints);
+      const basePoints = Math.max(1, Math.round(pointWeight * 100));
+      const title = clue.title?.trim() || `Clue ${clue.route_order}`;
+      const theme = clue.theme?.trim();
+      const difficulty = clue.difficulty?.trim();
+      const generatedInstructions = [
+        `Use this clue title and theme to locate the correct place: ${title}.`,
+        theme ? `Theme: ${theme}.` : "",
+        difficulty ? `Difficulty: ${difficulty}.` : "",
+        "Submit your best team evidence and answer from the app."
+      ].filter(Boolean).join(" ");
+
+      return {
+        order_index: clue.route_order,
+        title,
+        instructions: generatedInstructions,
+        required_flag: isFinal || isSpecialTransport,
+        transport_mode: transportMode,
+        requires_scan: false,
+        submission_type: isFinal ? "TEXT" : "PHOTO",
+        ai_rubric: `PASS when the team submission credibly matches clue '${title}'${theme ? ` (${theme})` : ""}.`,
+        base_points: basePoints,
+        qr_public_id: sanitizeQrPublicId(clue.id || `CLUE-${index + 1}`)
+      };
+    });
+
+  if (clues.length === 0) {
+    throw new Error("Schema v2 dataset must include at least one clue.");
+  }
+
+  return {
+    game: {
+      name: value.metadata?.name?.trim() || fallbackSeed?.game.name || "Scavenge Hunt",
+      status: fallbackSeed?.game.status ?? "PENDING",
+      timezone: value.metadata?.timezone?.trim() || fallbackSeed?.game.timezone || "America/Los_Angeles"
+    },
+    teams: fallbackTeams,
+    clues,
+    sabotage_catalog: fallbackSeed?.sabotage_catalog ?? []
+  };
+};
+
+export const normalizeSeedConfig = (value: unknown, fallbackSeed?: SeedConfig): SeedConfig => {
+  if (isLegacySeedConfig(value)) {
+    return value;
+  }
+
+  if (isSeedConfigV2(value)) {
+    return convertSeedConfigV2(value, fallbackSeed);
+  }
+
+  throw new Error("Unsupported seed config format. Expected legacy SeedConfig or schema_version 2.x dataset.");
+};
+
 const seedSearchRoots = [path.resolve(process.cwd(), ".."), path.resolve(process.cwd())];
 
 const resolveSeedConfigPath = (fileNames: string[]): string | null => {
@@ -191,8 +334,9 @@ const resolveSeedConfigPath = (fileNames: string[]): string | null => {
   return null;
 };
 
-const parseSeedConfigFile = (seedPath: string): SeedConfig => {
-  return JSON.parse(fs.readFileSync(seedPath, "utf-8")) as SeedConfig;
+const parseSeedConfigFile = (seedPath: string, fallbackSeed?: SeedConfig): SeedConfig => {
+  const raw = JSON.parse(fs.readFileSync(seedPath, "utf-8")) as unknown;
+  return normalizeSeedConfig(raw, fallbackSeed);
 };
 
 const variantFileCandidates: Record<SeedConfigVariant, string[]> = {
@@ -218,23 +362,25 @@ export const loadSeedConfig = (): SeedConfig => {
 };
 
 export const loadSeedConfigVariant = (variant: SeedConfigVariant): SeedConfigVariantResult => {
+  const defaultSeedPath = resolveSeedConfigPath(["seed-config.json"]);
+  const defaultSeed = defaultSeedPath ? parseSeedConfigFile(defaultSeedPath) : undefined;
+
   const variantPath = resolveSeedConfigPath(variantFileCandidates[variant]);
   if (variantPath) {
     return {
-      seed: parseSeedConfigFile(variantPath),
+      seed: parseSeedConfigFile(variantPath, defaultSeed),
       sourceFile: variantPath,
       resolvedSource: variant,
       fallbackToDefault: false
     };
   }
 
-  const defaultSeedPath = resolveSeedConfigPath(["seed-config.json"]);
-  if (!defaultSeedPath) {
+  if (!defaultSeedPath || !defaultSeed) {
     throw new Error("seed-config.json not found. Expected at repo root.");
   }
 
   return {
-    seed: parseSeedConfigFile(defaultSeedPath),
+    seed: defaultSeed,
     sourceFile: defaultSeedPath,
     resolvedSource: "default",
     fallbackToDefault: true
