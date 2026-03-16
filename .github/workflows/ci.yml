@@ -4,9 +4,10 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  workflow_dispatch:
 
 jobs:
-  build:
+  build_and_test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,6 +16,49 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run build -w shared
-      - run: npm run build -w backend
-      - run: npm run build -w admin
+      - run: npm run test
+      - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: build_and_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm --prefix admin exec playwright install --with-deps chromium
+      - run: npm --prefix admin run e2e
+
+  smoke_prod_gate:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [build_and_test, e2e]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Validate production smoke secret
+        shell: bash
+        env:
+          PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          if [ -z "$PROD_ADMIN_PASSWORD" ]; then
+            echo "Missing required secret: PROD_ADMIN_PASSWORD"
+            exit 1
+          fi
+      - name: Run production smoke gate
+        shell: pwsh
+        env:
+          PROD_ADMIN_PASSWORD: ${{ secrets.PROD_ADMIN_PASSWORD }}
+        run: |
+          ./backend/scripts/smoke-prod.ps1 `
+            -BaseUrl "https://api.boyzweekend.org/api" `
+            -WebUrl "https://www.boyzweekend.org" `
+            -ExpectedCorsOrigin "https://www.boyzweekend.org" `
+            -AdminPassword "$env:PROD_ADMIN_PASSWORD"

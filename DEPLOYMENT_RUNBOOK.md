@@ -21,13 +21,30 @@ Set these on Railway backend service:
 - `AI_PROVIDER=mock` (switch to `openai` when API key is ready)
 - `OPENAI_API_KEY=<optional for now>`
 - `OPENAI_MODEL=gpt-4o`
-- `SOCKET_CORS_ORIGIN=<admin-web-url>`
+- `SOCKET_CORS_ORIGIN=https://www.boyzweekend.org,https://boyzweekend.org,https://scavenge-web-production.up.railway.app`
+- `RATE_LIMIT_JOIN_WINDOW_MS=300000`
+- `RATE_LIMIT_JOIN_MAX=30`
+- `RATE_LIMIT_ADMIN_LOGIN_WINDOW_MS=600000`
+- `RATE_LIMIT_ADMIN_LOGIN_MAX=10`
+- `RATE_LIMIT_SCAN_VALIDATE_WINDOW_MS=60000`
+- `RATE_LIMIT_SCAN_VALIDATE_MAX=20`
+- `RATE_LIMIT_SUBMIT_WINDOW_MS=300000`
+- `RATE_LIMIT_SUBMIT_MAX=10`
+- `RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS=300000`
+- `RATE_LIMIT_SABOTAGE_TRIGGER_MAX=6`
 
 ## 3) Environment variables (web)
 
 Set on Railway web service:
 
-- `VITE_API_BASE_URL=https://<backend-domain>/api`
+- `VITE_API_BASE_URL=https://api.boyzweekend.org/api`
+
+Canonical app/admin URL:
+
+- `https://www.boyzweekend.org`
+- `https://www.boyzweekend.org/admin`
+
+If apex forwarding is enabled, note that some DNS-forwarding providers do not preserve path segments reliably. Keep `https://www.boyzweekend.org/admin` as the canonical admin route.
 
 For Expo/mobile clients, set in the mobile app environment:
 
@@ -62,7 +79,11 @@ Quick script (from repo root):
 
 Optional overrides:
 
-- `powershell -ExecutionPolicy Bypass -File backend/scripts/smoke-prod.ps1 -BaseUrl "https://<backend-domain>/api" -AdminPassword "<admin-password>"`
+- `powershell -ExecutionPolicy Bypass -File backend/scripts/smoke-prod.ps1 -BaseUrl "https://api.boyzweekend.org/api" -WebUrl "https://www.boyzweekend.org" -ExpectedCorsOrigin "https://www.boyzweekend.org" -AdminPassword "<admin-password>"`
+
+Synthetic checks:
+
+- `npm run synthetic:prod -w backend`
 
 ## 7) Launch checklist
 
@@ -77,3 +98,10 @@ Optional overrides:
 - Re-deploy previous Railway release for backend and web
 - Restore latest DB snapshot if data corruption is suspected
 - If needed, set `PERSISTENCE_MODE=memory` only for emergency read/demo mode
+
+## 9) CI Deployment Gate
+
+- CI now runs tests, build, Playwright e2e, and production smoke checks.
+- Set `PROD_ADMIN_PASSWORD` as a GitHub Actions secret.
+- Use GitHub's built-in Actions notifications for failure alerts (no external webhook secret required).
+- Require the CI workflow as a branch protection check on `main` so production promotion is blocked unless smoke checks pass.
