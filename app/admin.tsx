@@ -518,7 +518,7 @@ export default function AdminScreen() {
             <View>
               <Text style={s.sectionTitle}>Send Clarifying Hint</Text>
               <Text style={s.hint}>
-                The hint appears as a highlighted banner in the team's clue view — next to the clue they're currently on.
+                The hint appears as a highlighted banner in the team clue view next to the clue they are currently on.
               </Text>
 
               <Text style={s.label}>Team</Text>
