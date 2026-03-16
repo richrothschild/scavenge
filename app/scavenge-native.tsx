@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SafeAreaView, View, Text, ScrollView, TouchableOpacity, TextInput, StyleSheet, Modal, Image, ActivityIndicator } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Camera } from 'expo-camera';
 import { BarCodeScanner } from 'expo-barcode-scanner';
 import { Video } from 'expo-av';
@@ -42,6 +43,7 @@ const initTeamState = () =>
 const ts = () => new Date().toLocaleTimeString();
 
 export default function ScavengeNative() {
+  const router = useRouter();
   const [view, setView] = useState<'join' | 'game' | 'admin'>('join');
   const [teamStates, setTeamStates] = useState(initTeamState());
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -245,6 +247,9 @@ export default function ScavengeNative() {
       <View style={styles.header}>
         <Text style={styles.title}>SCAVENGE</Text>
         <Text style={styles.points}>{myState?.score ?? 0} pts</Text>
+        <TouchableOpacity onPress={() => router.push('/admin')} style={{ padding: 4 }}>
+          <Text style={{ color: '#333', fontSize: 18 }}>⚙</Text>
+        </TouchableOpacity>
       </View>
 
       {notification && (
