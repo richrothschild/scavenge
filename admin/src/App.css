@@ -190,6 +190,51 @@ button {
   margin-top: 0.5rem;
 }
 .field-optional { font-weight: 400; text-transform: none; letter-spacing: 0; }
+
+.field-hint {
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.team-chip-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem;
+  margin-top: 0.15rem;
+}
+
+.team-chip {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.18);
+  color: #e2e8f0;
+  border-radius: 999px;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.team-chip:hover {
+  border-color: #F2552C;
+}
+
+.team-chip--active {
+  background: rgba(242,85,44,0.2);
+  border-color: #F2552C;
+  color: #fff;
+}
+
+.team-chip__suit {
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
 .join-input {
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.15);
@@ -756,6 +801,52 @@ button {
   font-size: 0.9rem;
 }
 .faq-a { color: #94a3b8; font-size: 0.85rem; line-height: 1.55; }
+
+.help-issue-picker {
+  margin-top: 0.95rem;
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+}
+
+.help-issue-picker__label {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.help-issue-picker__chips {
+  margin-top: 0.6rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.help-issue-chip {
+  border: 1px solid rgba(148,163,184,0.45);
+  background: transparent;
+  color: #cbd5e1;
+  border-radius: 999px;
+  padding: 0.38rem 0.62rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.help-issue-chip--active {
+  background: rgba(29,78,216,0.2);
+  border-color: #60a5fa;
+  color: #dbeafe;
+}
+
+.help-issue-picker__preview {
+  margin-top: 0.6rem;
+  font-size: 0.8rem;
+  color: #93c5fd;
+}
 
 /* Contact the Dictator button */
 .dictator-actions {

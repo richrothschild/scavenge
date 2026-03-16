@@ -23,6 +23,15 @@ test("join flow advances to in-game screen", async ({ page }) => {
   await expect(page.getByRole("button", { name: "🗺️ Clue" })).toBeVisible();
 });
 
+test("team quick-select chips populate join field", async ({ page }) => {
+  await page.goto("/");
+  await page.getByTestId("team-chip-hearts").click();
+  await expect(page.getByTestId("join-code-input")).toHaveValue("HEARTS");
+
+  await page.getByTestId("join-code-input").fill("DIAMONDS-4AFYXZ");
+  await expect(page.getByTestId("join-code-input")).toHaveValue("DIAMONDS");
+});
+
 test("admin login works", async ({ page }) => {
   await loginAsAdmin(page);
   await expect(page.getByText("Admin Ops")).toBeVisible();
@@ -47,17 +56,21 @@ test("help screen dictator links open SMS composer", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "Get Help" }).click();
 
-  const contactLink = page.getByRole("link", { name: /Contact the Dictator/i });
+  await page.getByTestId("help-issue-wrong_clue").click();
+
+  const contactLink = page.getByTestId("contact-dictator-link");
   await expect(contactLink).toBeVisible();
 
   const contactHref = await contactLink.getAttribute("href");
   expect(contactHref).toContain("sms:4086054832");
   expect(contactHref).toContain("SCAVENGE%20HELP%20REQUEST");
+  expect(contactHref).toContain("Issue%3A%20Wrong%20clue%20is%20showing");
 
-  const testLink = page.getByRole("link", { name: /Send Test Text/i });
+  const testLink = page.getByTestId("contact-dictator-test-link");
   await expect(testLink).toBeVisible();
 
   const testHref = await testLink.getAttribute("href");
   expect(testHref).toContain("sms:4086054832");
   expect(testHref).toContain("SCAVENGE%20TEST");
+  expect(testHref).toContain("Topic%3A%20Wrong%20clue%20is%20showing");
 });

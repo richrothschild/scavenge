@@ -12,6 +12,17 @@ const TEAM_THEMES = {
   CLUBS:    { suit: "♣", accent: "#4ade80", mascot: "🌿",  fullName: "Haight Clovers",        landmark: "Haight-Ashbury",    tagline: "Peace, love, and first place"                   },
 } as const;
 type TeamSuit = keyof typeof TEAM_THEMES;
+const TEAM_SUIT_OPTIONS: TeamSuit[] = ["SPADES", "HEARTS", "DIAMONDS", "CLUBS"];
+
+const HELP_ISSUES = [
+  { id: "GENERAL", label: "General issue", smsLine: "General support request" },
+  { id: "QR_SCAN", label: "QR scan broken", smsLine: "QR scan is not working" },
+  { id: "WRONG_CLUE", label: "Wrong clue shown", smsLine: "Wrong clue is showing" },
+  { id: "NEEDS_REVIEW", label: "Review delay", smsLine: "Submission is stuck in NEEDS_REVIEW" },
+  { id: "APP_STUCK", label: "App stuck", smsLine: "App is frozen or not loading" }
+] as const;
+
+type HelpIssueId = typeof HELP_ISSUES[number]["id"];
 
 type Role = "CAPTAIN" | "MEMBER";
 
@@ -125,6 +136,7 @@ function App() {
   // ── Player UI state ───────────────────────────────────────────
   const [playerTab, setPlayerTab] = useState<"clue" | "leaderboard">("clue");
   const [infoModal, setInfoModal] = useState<"howtoplay" | "rules" | "help" | null>(null);
+  const [selectedHelpIssueId, setSelectedHelpIssueId] = useState<HelpIssueId>("GENERAL");
   const [submitFile, setSubmitFile] = useState<File | null>(null);
   const [submitPreviewUrl, setSubmitPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -289,15 +301,20 @@ function App() {
     return parts[parts.length - 1] || value;
   };
 
+  const selectedHelpIssue = useMemo(
+    () => HELP_ISSUES.find((issue) => issue.id === selectedHelpIssueId) ?? HELP_ISSUES[0],
+    [selectedHelpIssueId]
+  );
+
   const buildDictatorSmsBody = (isTest: boolean) => {
     const teamName = normalizeTeamCodeInput(teamState?.teamName ?? joinCode) || "UNKNOWN";
     const clueNumber = (teamState?.currentClueIndex ?? 0) + 1;
 
     if (isTest) {
-      return `SCAVENGE TEST\nTeam: ${teamName}\nClue: ${clueNumber}\nPlease ignore - this is a test text from the Help screen.`;
+      return `SCAVENGE TEST\nTeam: ${teamName}\nClue: ${clueNumber}\nTopic: ${selectedHelpIssue.smsLine}\nPlease ignore - this is a test text from the Help screen.`;
     }
 
-    return `SCAVENGE HELP REQUEST\nTeam: ${teamName}\nClue: ${clueNumber}\nIssue: `;
+    return `SCAVENGE HELP REQUEST\nTeam: ${teamName}\nClue: ${clueNumber}\nIssue: ${selectedHelpIssue.smsLine}`;
   };
 
   const buildDictatorSmsHref = (isTest: boolean) => {
@@ -1188,6 +1205,21 @@ function App() {
 
               <form onSubmit={joinTeam} className="join-form">
                 <label className="field-label">Team name</label>
+                <div className="team-chip-row" role="radiogroup" aria-label="Team quick select">
+                  {TEAM_SUIT_OPTIONS.map((team) => (
+                    <button
+                      key={team}
+                      type="button"
+                      data-testid={`team-chip-${team.toLowerCase()}`}
+                      className={`team-chip${normalizeTeamCodeInput(joinCode) === team ? " team-chip--active" : ""}`}
+                      onClick={() => setJoinCode(team)}
+                    >
+                      <span className="team-chip__suit">{TEAM_THEMES[team].suit}</span>
+                      <span>{team}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="field-hint">Tap your team, or paste a legacy code like SPADES-AJ29LN.</div>
                 <input
                   data-testid="join-code-input"
                   className="join-input"
@@ -1612,9 +1644,28 @@ function App() {
                         <div className="faq-a">Use the button below to alert the Dictator directly.</div>
                       </div>
 
+                      <div className="help-issue-picker">
+                        <div className="help-issue-picker__label">Quick issue type</div>
+                        <div className="help-issue-picker__chips">
+                          {HELP_ISSUES.map((issue) => (
+                            <button
+                              key={issue.id}
+                              type="button"
+                              data-testid={`help-issue-${issue.id.toLowerCase()}`}
+                              className={`help-issue-chip${selectedHelpIssueId === issue.id ? " help-issue-chip--active" : ""}`}
+                              onClick={() => setSelectedHelpIssueId(issue.id)}
+                            >
+                              {issue.label}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="help-issue-picker__preview">Message topic: {selectedHelpIssue.smsLine}</div>
+                      </div>
+
                       <div className="dictator-actions">
                         <a
                           className="btn-dictator"
+                          data-testid="contact-dictator-link"
                           href={buildDictatorSmsHref(false)}
                           onClick={() => { void handleDictatorClick(false); }}
                         >
@@ -1622,6 +1673,7 @@ function App() {
                         </a>
                         <a
                           className="btn-dictator btn-dictator--test"
+                          data-testid="contact-dictator-test-link"
                           href={buildDictatorSmsHref(true)}
                           onClick={() => { void handleDictatorClick(true); }}
                         >
