@@ -6,4 +6,3 @@ coverage/
 .env
 playwright-report/
 test-results/
-.vscode/
