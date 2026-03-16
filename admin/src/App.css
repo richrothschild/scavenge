@@ -1046,6 +1046,42 @@ button {
   font-weight: 700;
 }
 
+/* ── Admin broadcast + hint banners ─────────────────────────── */
+.admin-broadcast-banner {
+  padding: 0.75rem 1rem;
+  background: rgba(139,92,246,0.18);
+  border: 1px solid rgba(139,92,246,0.4);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  color: #e9d5ff;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.admin-hint-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: rgba(251,191,36,0.14);
+  border: 1px solid rgba(251,191,36,0.4);
+  border-radius: 10px;
+  font-size: 0.92rem;
+  color: #fde68a;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+.admin-hint-dismiss {
+  background: none;
+  border: none;
+  color: rgba(253,230,138,0.6);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 0 0 0.5rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.admin-hint-dismiss:hover { color: #fde68a; }
+
 /* ── Loading clue ────────────────────────────────────────── */
 .loading-clue {
   display: flex;

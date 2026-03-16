@@ -94,6 +94,8 @@ function App() {
   const [submitText, setSubmitText] = useState("");
   const [lastVerdict, setLastVerdict] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   const [lastFeedback, setLastFeedback] = useState("");
+  const [adminHint, setAdminHint] = useState<{ clueIndex: number; hintText: string } | null>(null);
+  const [broadcastMsg, setBroadcastMsg] = useState<string | null>(null);
   const [adminPassword, setAdminPassword] = useState("");
   const [adminToken, setAdminToken] = useState("");
   const [reviewQueue, setReviewQueue] = useState<ReviewQueueItem[]>([]);
@@ -853,6 +855,8 @@ function App() {
     sock.on("leaderboard:updated", () => { void fetchLeaderboard(); });
     sock.on("submission:verdict_ready", () => { void refreshTeamState(); });
     sock.on("sabotage:triggered", () => { void refreshTeamState(); });
+    sock.on("admin:hint", (data: { clueIndex: number; hintText: string }) => { setAdminHint(data); });
+    sock.on("admin:broadcast", (data: { message: string }) => { setBroadcastMsg(data.message); setTimeout(() => setBroadcastMsg(null), 8000); });
     return () => { sock.disconnect(); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, mode]);
@@ -1182,6 +1186,21 @@ function App() {
                               </>
                             )}
                           </div>
+
+                          {/* Broadcast message from Dictator */}
+                          {broadcastMsg && (
+                            <div className="admin-broadcast-banner">
+                              📢 <strong>Message from the Dictator:</strong> {broadcastMsg}
+                            </div>
+                          )}
+
+                          {/* Admin hint for this clue */}
+                          {adminHint && adminHint.clueIndex === teamState.currentClueIndex && (
+                            <div className="admin-hint-banner">
+                              💡 <strong>Hint from the Dictator:</strong> {adminHint.hintText}
+                              <button className="admin-hint-dismiss" onClick={() => setAdminHint(null)}>✕</button>
+                            </div>
+                          )}
 
                           {/* Verdict */}
                           {lastVerdict && (

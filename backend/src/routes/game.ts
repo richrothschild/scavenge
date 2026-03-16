@@ -442,6 +442,97 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.status(200).json(result);
   });
 
+  router.post("/admin/team/:teamId/award", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const teamId = req.params.teamId;
+    const amount = typeof req.body?.amount === "number" ? req.body.amount : 0;
+    const reason = typeof req.body?.reason === "string" ? req.body.reason : "";
+    if (!reason) {
+      return res.status(400).json({ error: "reason is required." });
+    }
+
+    const result = await gameEngine.awardTeamPoints(teamId, amount, reason);
+    if ("error" in result) {
+      return res.status(400).json(result);
+    }
+
+    const io = req.app.get("io") as Server | undefined;
+    io?.emit("leaderboard:updated", { teams: gameEngine.getLeaderboard() });
+
+    return res.status(200).json(result);
+  });
+
+  router.post("/admin/team/:teamId/hint", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const teamId = req.params.teamId;
+    const clueIndex = typeof req.body?.clueIndex === "number" ? req.body.clueIndex : -1;
+    const hintText = typeof req.body?.hintText === "string" ? req.body.hintText : "";
+
+    if (clueIndex < 0) {
+      return res.status(400).json({ error: "clueIndex is required." });
+    }
+
+    const result = await gameEngine.recordAdminHint(teamId, clueIndex, hintText);
+    if ("error" in result) {
+      return res.status(400).json(result);
+    }
+
+    const io = req.app.get("io") as Server | undefined;
+    io?.to(teamId).emit("admin:hint", { clueIndex: result.clueIndex, hintText: result.hintText });
+
+    return res.status(200).json(result);
+  });
+
+  router.post("/admin/broadcast", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const message = typeof req.body?.message === "string" ? req.body.message.trim() : "";
+    if (!message) {
+      return res.status(400).json({ error: "message is required." });
+    }
+
+    const io = req.app.get("io") as Server | undefined;
+    io?.emit("admin:broadcast", { message, sentAt: new Date().toISOString() });
+
+    return res.status(200).json({ message, sentAt: new Date().toISOString() });
+  });
+
+  router.post("/admin/reset-seed", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const variant = req.body?.variant;
+    if (variant !== "test" && variant !== "production") {
+      return res.status(400).json({ error: "variant must be 'test' or 'production'." });
+    }
+
+    const result = await gameEngine.resetToVariant(variant);
+    return res.status(200).json(result);
+  });
+
+  router.post("/admin/restart", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    res.status(200).json({ message: "Server restarting in 1s…" });
+    setTimeout(() => process.exit(0), 1000);
+  });
+
   router.post("/admin/team/:teamId/reopen-clue", async (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {

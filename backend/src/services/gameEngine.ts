@@ -760,6 +760,62 @@ export class GameEngine {
     return { teamId, scoreTotal: team.scoreTotal, amount, reason };
   }
 
+  async awardTeamPoints(teamId: string, amount: number, reason: string) {
+    const team = this.teamsById.get(teamId);
+    if (!team) return { error: "Team not found." as const };
+    if (amount <= 0) return { error: "Award amount must be positive." as const };
+
+    team.scoreTotal += amount;
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "POINTS_AWARDED",
+      targetType: "TEAM",
+      targetId: teamId,
+      reason,
+      metadata: { amount },
+      createdAt: new Date().toISOString()
+    });
+
+    await this.persist();
+    return { teamId, scoreTotal: team.scoreTotal, amount, reason };
+  }
+
+  async recordAdminHint(teamId: string, clueIndex: number, hintText: string) {
+    const team = this.teamsById.get(teamId);
+    if (!team) return { error: "Team not found." as const };
+    if (clueIndex < 0 || clueIndex >= this.clues.length) return { error: "Invalid clue index." as const };
+    if (!hintText.trim()) return { error: "Hint text is required." as const };
+
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "HINT_SENT",
+      targetType: "TEAM_CLUE",
+      targetId: `${teamId}:${clueIndex}`,
+      reason: hintText,
+      metadata: { clueIndex, hintText },
+      createdAt: new Date().toISOString()
+    });
+
+    await this.persist();
+    return { teamId, clueIndex, hintText };
+  }
+
+  async resetToVariant(variant: SeedConfigVariant) {
+    const loaded = loadSeedConfigVariant(variant);
+    const freshSnapshot = createInitialSnapshot(loaded.seed);
+    await this.store.save(freshSnapshot);
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "SEED_RESET",
+      targetType: "GAME",
+      targetId: "game",
+      reason: `Reset to ${variant} variant`,
+      metadata: { variant, resolvedSource: loaded.resolvedSource, clueCount: loaded.seed.clues.length },
+      createdAt: new Date().toISOString()
+    });
+    return { variant, resolvedSource: loaded.resolvedSource, clueCount: loaded.seed.clues.length, requiresRestart: true };
+  }
+
   async reopenTeamClue(teamId: string, clueIndex: number, reason: string, durationSeconds?: number) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
