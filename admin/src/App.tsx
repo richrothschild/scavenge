@@ -87,6 +87,13 @@ type RealtimeEventItem = {
 
 type AdminClueSource = "test" | "production";
 
+type SeedResetResponse = {
+  variant: AdminClueSource;
+  resolvedSource: AdminClueSource | "default";
+  clueCount: number;
+  requiresRestart: boolean;
+};
+
 function App() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
   const [mode] = useState<"player" | "admin">(isAdminPath ? "admin" : "player");
@@ -154,6 +161,7 @@ function App() {
   const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
+  const [adminStartTestBusy, setAdminStartTestBusy] = useState(false);
   const [teamAssignments, setTeamAssignments] = useState<JoinTeamOption[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
@@ -273,6 +281,34 @@ function App() {
       message
     };
     setRealtimeEvents((previous) => [item, ...previous].slice(0, 30));
+  };
+
+  const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+  const waitForApiReady = async () => {
+    const endpoint = `${apiBase}/health`;
+    let lastError = "Backend did not become healthy in time.";
+
+    for (let attempt = 0; attempt < 30; attempt += 1) {
+      try {
+        const response = await fetch(endpoint, { cache: "no-store" });
+        if (response.ok) {
+          const payload = await response.json() as { ok?: boolean };
+          if (payload.ok) {
+            return;
+          }
+          lastError = "Health endpoint responded without ok=true.";
+        } else {
+          lastError = `Health check returned HTTP ${response.status}.`;
+        }
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : String(error);
+      }
+
+      await delay(2000);
+    }
+
+    throw new Error(lastError);
   };
 
   const haptic = (pattern: number | number[] = 50) => {
@@ -689,6 +725,75 @@ function App() {
     }
     setGameStatus(payload);
     setStatusMessage(`Game status set to ${payload.status}`);
+  };
+
+  const startTestHunt = async () => {
+    if (!adminToken) {
+      setStatusMessage("Admin login required");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Reset to the TEST hunt, restart the backend, and start the game now? This wipes current progress."
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setAdminStartTestBusy(true);
+
+    try {
+      setStatusMessage("Resetting to TEST hunt…");
+      const resetResponse = await fetch(`${apiBase}/admin/reset-seed`, {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({ variant: "test" })
+      });
+
+      if (!resetResponse.ok) {
+        setStatusMessage(await parseError(resetResponse, "Test hunt reset failed"));
+        return;
+      }
+
+      const resetPayload = await resetResponse.json() as SeedResetResponse;
+
+      if (resetPayload.requiresRestart) {
+        setStatusMessage("Test hunt loaded. Restarting backend…");
+        try {
+          await fetch(`${apiBase}/admin/restart`, {
+            method: "POST",
+            headers: adminHeaders
+          });
+        } catch {
+          // Expected when the server exits before the response fully settles.
+        }
+
+        setStatusMessage("Waiting for backend to come back…");
+        await waitForApiReady();
+      }
+
+      setStatusMessage("Backend is up. Starting TEST hunt…");
+      const statusResponse = await fetch(`${apiBase}/game/status`, {
+        method: "POST",
+        headers: adminHeaders,
+        body: JSON.stringify({ status: "RUNNING" })
+      });
+
+      if (!statusResponse.ok) {
+        setStatusMessage(await parseError(statusResponse, "Test hunt start failed"));
+        return;
+      }
+
+      const statusPayload = await statusResponse.json() as GameStatusPayload;
+      setGameStatus(statusPayload);
+      await Promise.all([fetchLeaderboard(), fetchAuditLogs(), fetchReviewQueue(), fetchSecurityEvents()]);
+      setStatusMessage(`TEST hunt started with ${resetPayload.clueCount} clues (${resetPayload.resolvedSource} source).`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Start TEST hunt failed: ${reason}`);
+    } finally {
+      setAdminStartTestBusy(false);
+    }
   };
 
   const fetchSecurityEvents = async (pagination?: { limit?: number; offset?: number }) => {
@@ -1860,7 +1965,13 @@ function App() {
             <p>
               Game: {gameStatus?.name ?? "-"} ({gameStatus?.timezone ?? "-"})
             </p>
+            <p>
+              One-click test launch resets to the TEST seed, restarts the backend, then marks the hunt RUNNING.
+            </p>
             <div className="actions-row">
+              <button onClick={() => { void startTestHunt(); }} disabled={adminStartTestBusy}>
+                {adminStartTestBusy ? "Starting Test Hunt…" : "Start Test Hunt"}
+              </button>
               <button onClick={() => updateGameStatus("PENDING")}>Set Pending</button>
               <button onClick={() => updateGameStatus("RUNNING")}>Start / Run</button>
               <button onClick={() => updateGameStatus("PAUSED")}>Pause</button>
