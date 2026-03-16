@@ -1,8 +1,8 @@
 # SCAVENGE — Project State
 
-Last updated: 2026-03-02
+Last updated: 2026-03-16
 
-## Current Status: 🟡 PHASE 3 IN PROGRESS — backend coverage complete; mobile API shell now wired
+## Current Status: 🟡 PHASE 3 IN PROGRESS — production backend/web now deployed with Postgres persistence; mobile API shell remains in progress
 
 ## Phase Progress
 
@@ -12,19 +12,19 @@ Last updated: 2026-03-02
 | 1 – Architecture + Repo | ✅ COMPLETE | Monorepo scaffold, Expo/Vite bootstrap, OpenAPI + initial migration |
 | 2 – Backend MVP | ✅ COMPLETE | Auth/team state, QR flow, runtime persistence, AI verdict/review, sabotage, security, admin actions |
 | 3 – Mobile MVP | 🟡 IN PROGRESS | Expo app includes join/state/leaderboard/submit/pass/QR, sabotage store, security report, team event feed, and submission history wiring |
-| 4 – Admin Console | 🟡 IN PROGRESS | Admin fallback now split into Setup/Live Ops with review/security/reopen/deduction/status + token/QR controls |
-| 5 – Testing | 🟡 IN PROGRESS | CI build workflow added |
-| 6 – Deployment | 🟡 IN PROGRESS | Dockerfiles + Railway configs + production runbook added |
+| 4 – Admin Console | ✅ COMPLETE | Dedicated admin experience now implemented in `/admin` with Setup + Live Ops (review/security/reopen/deduction/status, token/QR controls, realtime + pagination) |
+| 5 – Testing | ✅ COMPLETE | CI now includes build/test, Playwright e2e, and production smoke gate; synthetic checks scheduled and passing |
+| 6 – Deployment | ✅ COMPLETE | Railway web + backend deployed on custom domains, managed Postgres provisioned, migrations/seed executed, smoke + synthetic checks green |
 
 ## Blocking Items
 
-- [ ] Confirm final point values for all clues (current defaults retained)
-- [ ] Confirm sabotage catalog or provide tuned replacements
-- [ ] Confirm final captain PIN policy (replace demo PINs before production)
+- [x] Confirm final point values for all clues (total 1,590; required transport/final clues weighted)
+- [x] Confirm sabotage catalog (5 actions retained for event-friendly gameplay)
+- [x] Confirm final captain PIN policy (team-specific 6-digit event PINs in seed config)
 - [ ] Expand backend integration coverage beyond baseline suite (core endpoint tests now added)
-- [ ] Run PostgreSQL migrations + seed in target environment and validate persistence mode
-- [ ] Complete dedicated Admin Console UX (current web fallback is functional but minimal)
-- [ ] Execute Railway production deployment with real credentials and domains
+- [x] Run PostgreSQL migrations + seed in target environment and validate persistence mode
+- [x] Complete dedicated Admin Console UX (Setup + Live Ops now covers operational controls)
+- [x] Execute Railway production deployment with real credentials and domains
 
 ## Critical Files
 
@@ -43,6 +43,11 @@ Last updated: 2026-03-02
 
 ## Recent Milestone
 
+- Production backend is now configured for `PERSISTENCE_MODE=postgres` and connected to Railway Postgres (`DATABASE_URL` sourced from Postgres service)
+- Production DB migrations have been applied (`001_initial.sql`, `002_runtime_state.sql`) and seed data has been loaded from `seed-config.json`
+- Runtime state reset script is now available (`npm run reset-state -w backend`) and was used to align runtime snapshot with seeded data
+- Production backend redeploy is healthy after Postgres migration/seed (healthcheck path `/api/health`)
+- Production smoke test (`npm run smoke:prod -w backend`) and synthetic checks (`npm run synthetic:prod -w backend`) both pass
 - Backend integration test baseline added in `backend/tests/gameRoutes.test.ts`
 - Current passing coverage includes role permissions, required clue pass restriction, QR future-scan rejection, review queue resolution, and sabotage cooldown
 - Coverage now also includes admin deduction/audit-log verification and realtime event emission assertions for clue advance, verdict ready, leaderboard updates, and clue reopen
