@@ -18,7 +18,7 @@ ENV NODE_ENV=production
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/backend/package.json backend/package.json
 COPY --from=build /app/backend/dist backend/dist
-COPY --from=build /app/seed-config.json ./seed-config.json
+COPY --from=build /app/seed-config*.json ./
 
 RUN npm ci --omit=dev --workspace=backend
 

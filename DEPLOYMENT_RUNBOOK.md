@@ -15,6 +15,7 @@ Set these on Railway backend service:
 - `NODE_ENV=production`
 - `PORT=3001`
 - `PERSISTENCE_MODE=postgres`
+- `SEED_VARIANT=test` (use test clues) or `SEED_VARIANT=production` (use production clues)
 - `DATABASE_URL=<managed_postgres_url>`
 - `JWT_SECRET=<long-random-secret>`
 - `ADMIN_PASSWORD=<strong-admin-password>`

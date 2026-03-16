@@ -6,11 +6,12 @@ import { RuntimeStateStore } from "./persistence/stateStore";
 import { MemoryStateStore, PostgresStateStore } from "./persistence/stateStore";
 import { createSocketServer } from "./realtime/socket";
 import { createAIJudgeProvider } from "./services/aiJudge";
-import { GameEngine, loadSeedConfig, RuntimeSnapshot } from "./services/gameEngine";
+import { GameEngine, RuntimeSnapshot, loadSeedConfigVariant } from "./services/gameEngine";
 
 const bootstrap = async () => {
   const corsOrigins = env.SOCKET_CORS_ORIGIN.split(",").map((value) => value.trim());
-  const seed = loadSeedConfig();
+  const loadedSeed = loadSeedConfigVariant(env.SEED_VARIANT);
+  const seed = loadedSeed.seed;
   const store: RuntimeStateStore<RuntimeSnapshot> =
     env.PERSISTENCE_MODE === "postgres"
       ? new PostgresStateStore(getPostgresPool(env.DATABASE_URL))
@@ -35,7 +36,9 @@ const bootstrap = async () => {
   app.set("io", io);
 
   server.listen(env.PORT, () => {
-    console.log(`[scavenge-backend] listening on port ${env.PORT} (${env.PERSISTENCE_MODE})`);
+    console.log(
+      `[scavenge-backend] listening on port ${env.PORT} (${env.PERSISTENCE_MODE}) seed=${env.SEED_VARIANT} source=${loadedSeed.sourceFile}`
+    );
   });
 };
 
