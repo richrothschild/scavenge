@@ -17,7 +17,18 @@ const bootstrap = async () => {
       : new MemoryStateStore();
   const gameEngine = await GameEngine.create(seed, store);
   const aiJudge = createAIJudgeProvider(env.AI_PROVIDER);
-  const app = createApp(corsOrigins, gameEngine, aiJudge);
+  const app = createApp(corsOrigins, gameEngine, aiJudge, {
+    joinWindowMs: env.RATE_LIMIT_JOIN_WINDOW_MS,
+    joinMax: env.RATE_LIMIT_JOIN_MAX,
+    adminLoginWindowMs: env.RATE_LIMIT_ADMIN_LOGIN_WINDOW_MS,
+    adminLoginMax: env.RATE_LIMIT_ADMIN_LOGIN_MAX,
+    scanValidateWindowMs: env.RATE_LIMIT_SCAN_VALIDATE_WINDOW_MS,
+    scanValidateMax: env.RATE_LIMIT_SCAN_VALIDATE_MAX,
+    submitWindowMs: env.RATE_LIMIT_SUBMIT_WINDOW_MS,
+    submitMax: env.RATE_LIMIT_SUBMIT_MAX,
+    sabotageTriggerWindowMs: env.RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS,
+    sabotageTriggerMax: env.RATE_LIMIT_SABOTAGE_TRIGGER_MAX
+  });
   const server = createServer(app);
 
   const io = createSocketServer(server, corsOrigins, gameEngine);

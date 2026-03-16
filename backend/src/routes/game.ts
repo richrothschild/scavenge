@@ -1,8 +1,9 @@
 import { Router } from "express";
 import { Server } from "socket.io";
+import { z } from "zod";
 import { env } from "../config/env";
 import { AIJudgeProvider } from "../services/aiJudge";
-import { GameEngine } from "../services/gameEngine";
+import { GameEngine, SeedConfig, SeedConfigVariant, loadSeedConfigVariant, saveSeedConfigVariant } from "../services/gameEngine";
 import { parseLimit } from "../utils/parseLimit";
 import { parseOffset } from "../utils/parseOffset";
 
@@ -15,6 +16,64 @@ const getAdminToken = (headers: Record<string, unknown>) => {
   const token = headers["x-admin-token"];
   return typeof token === "string" ? token : undefined;
 };
+
+const serializeClues = (clues: SeedConfig["clues"]) => {
+  return [...clues]
+    .sort((a, b) => a.order_index - b.order_index)
+    .map((clue, index) => ({
+      index,
+      order_index: clue.order_index,
+      title: clue.title,
+      instructions: clue.instructions,
+      required_flag: clue.required_flag,
+      transport_mode: clue.transport_mode,
+      requires_scan: clue.requires_scan,
+      submission_type: clue.submission_type,
+      base_points: clue.base_points,
+      qr_public_id: clue.qr_public_id
+    }));
+};
+
+const transportModeSchema = z.enum(["WALK", "WAYMO", "CABLE_CAR", "NONE"]);
+const submissionTypeSchema = z.enum(["PHOTO", "VIDEO", "TEXT", "NONE"]);
+const gameStatusSchema = z.enum(["PENDING", "RUNNING", "PAUSED", "ENDED"]);
+
+const seedConfigUploadSchema = z.object({
+  source: z.enum(["test", "production"]),
+  seedConfig: z.object({
+    game: z.object({
+      name: z.string().min(1),
+      status: gameStatusSchema,
+      timezone: z.string().min(1)
+    }),
+    teams: z.array(z.object({
+      name: z.enum(["SPADES", "HEARTS", "DIAMONDS", "CLUBS"]),
+      join_code: z.string().min(1),
+      captain_name: z.string().min(1),
+      captain_pin: z.string().min(1)
+    })).min(1),
+    clues: z.array(z.object({
+      order_index: z.number().int().nonnegative(),
+      title: z.string().min(1),
+      instructions: z.string(),
+      required_flag: z.boolean(),
+      transport_mode: transportModeSchema,
+      requires_scan: z.boolean(),
+      submission_type: submissionTypeSchema,
+      ai_rubric: z.string(),
+      base_points: z.number().int().nonnegative(),
+      qr_public_id: z.string().min(1)
+    })).min(1),
+    sabotage_catalog: z.array(z.object({
+      name: z.string().min(1),
+      description: z.string(),
+      cost: z.number().int().nonnegative(),
+      cooldown_seconds: z.number().int().nonnegative(),
+      effect_type: z.string().min(1),
+      effect_duration_seconds: z.number().int().nonnegative().optional()
+    })).optional()
+  })
+});
 
 export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => {
   const router = Router();
@@ -442,7 +501,72 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     if (!gameEngine.isAdminTokenValid(adminToken)) {
       return res.status(401).json({ error: "Admin token required." });
     }
-    return res.json({ clues: gameEngine.getAllClues() });
+
+    const source = req.query.source;
+    if (source !== undefined && source !== "test" && source !== "production") {
+      return res.status(400).json({ error: "source must be 'test' or 'production'." });
+    }
+
+    if (source === "test" || source === "production") {
+      const selectedSource = source as SeedConfigVariant;
+      const loaded = loadSeedConfigVariant(selectedSource);
+      return res.json({
+        clues: serializeClues(loaded.seed.clues),
+        requestedSource: selectedSource,
+        resolvedSource: loaded.resolvedSource,
+        fallbackToDefault: loaded.fallbackToDefault,
+        sourceFile: loaded.sourceFile
+      });
+    }
+
+    return res.json({
+      clues: gameEngine.getAllClues(),
+      requestedSource: "active",
+      resolvedSource: "active",
+      fallbackToDefault: false
+    });
+  });
+
+  router.get("/admin/clues/template", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const source = req.query.source;
+    if (source !== undefined && source !== "test" && source !== "production") {
+      return res.status(400).json({ error: "source must be 'test' or 'production'." });
+    }
+
+    const requestedSource = (source === "test" || source === "production") ? (source as SeedConfigVariant) : "production";
+    const loaded = loadSeedConfigVariant(requestedSource);
+
+    return res.json({
+      requestedSource,
+      resolvedSource: loaded.resolvedSource,
+      fallbackToDefault: loaded.fallbackToDefault,
+      sourceFile: loaded.sourceFile,
+      seedConfig: loaded.seed
+    });
+  });
+
+  router.post("/admin/clues/upload", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const parsed = seedConfigUploadSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ error: "Invalid seed upload payload." });
+    }
+
+    const saveResult = saveSeedConfigVariant(parsed.data.source as SeedConfigVariant, parsed.data.seedConfig);
+    return res.json({
+      source: parsed.data.source,
+      clueCount: saveResult.clueCount,
+      sourceFile: saveResult.sourceFile
+    });
   });
 
   return router;

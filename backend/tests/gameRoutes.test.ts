@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import test from "node:test";
 import request, { SuperTest, Test } from "supertest";
-import { createApp } from "../src/app";
+import { AuthRateLimitConfig, createApp } from "../src/app";
 import { createAIJudgeProvider } from "../src/services/aiJudge";
 import { GameEngine, loadSeedConfig } from "../src/services/gameEngine";
 import { MemoryStateStore } from "../src/persistence/stateStore";
@@ -34,6 +35,16 @@ const setup = async () => {
   const seed = loadSeedConfig();
   const gameEngine = await GameEngine.create(seed, new MemoryStateStore());
   const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"));
+  const ioSpy = createIoSpy();
+  app.set("io", ioSpy.io);
+  const http = request(app);
+  return { seed, gameEngine, http, emissions: ioSpy.emissions };
+};
+
+const setupWithRateLimits = async (authRateLimitConfig: AuthRateLimitConfig) => {
+  const seed = loadSeedConfig();
+  const gameEngine = await GameEngine.create(seed, new MemoryStateStore());
+  const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"), authRateLimitConfig);
   const ioSpy = createIoSpy();
   app.set("io", ioSpy.io);
   const http = request(app);
@@ -101,6 +112,197 @@ test("member cannot submit clues", async () => {
 
   assert.equal(submitResponse.status, 403);
   assert.match(submitResponse.body.error, /captains/i);
+});
+
+test("join endpoint enforces rate limits", async () => {
+  const { seed, http } = await setupWithRateLimits({
+    joinWindowMs: 60_000,
+    joinMax: 2,
+    adminLoginWindowMs: 60_000,
+    adminLoginMax: 10,
+    scanValidateWindowMs: 60_000,
+    scanValidateMax: 20,
+    submitWindowMs: 60_000,
+    submitMax: 20,
+    sabotageTriggerWindowMs: 60_000,
+    sabotageTriggerMax: 20
+  });
+  const team = seed.teams[0];
+
+  const firstJoin = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Rate Limit Member 1"
+  });
+  assert.equal(firstJoin.status, 200);
+
+  const secondJoin = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Rate Limit Member 2"
+  });
+  assert.equal(secondJoin.status, 200);
+
+  const thirdJoin = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Rate Limit Member 3"
+  });
+  assert.equal(thirdJoin.status, 429);
+  assert.match(thirdJoin.body.error, /too many join attempts/i);
+});
+
+test("admin login endpoint enforces rate limits", async () => {
+  const { http } = await setupWithRateLimits({
+    joinWindowMs: 60_000,
+    joinMax: 10,
+    adminLoginWindowMs: 60_000,
+    adminLoginMax: 2,
+    scanValidateWindowMs: 60_000,
+    scanValidateMax: 20,
+    submitWindowMs: 60_000,
+    submitMax: 20,
+    sabotageTriggerWindowMs: 60_000,
+    sabotageTriggerMax: 20
+  });
+
+  const firstLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  assert.equal(firstLogin.status, 200);
+
+  const secondLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  assert.equal(secondLogin.status, 200);
+
+  const thirdLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  assert.equal(thirdLogin.status, 429);
+  assert.match(thirdLogin.body.error, /too many admin login attempts/i);
+});
+
+test("scan validate endpoint enforces rate limits", async () => {
+  const { seed, http } = await setupWithRateLimits({
+    joinWindowMs: 60_000,
+    joinMax: 10,
+    adminLoginWindowMs: 60_000,
+    adminLoginMax: 10,
+    scanValidateWindowMs: 60_000,
+    scanValidateMax: 2,
+    submitWindowMs: 60_000,
+    submitMax: 20,
+    sabotageTriggerWindowMs: 60_000,
+    sabotageTriggerMax: 20
+  });
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  const sessionOne = await http
+    .post("/api/team/me/scan-session")
+    .set("x-auth-token", captainToken)
+    .send({});
+  assert.equal(sessionOne.status, 200);
+
+  const sessionTwo = await http
+    .post("/api/team/me/scan-session")
+    .set("x-auth-token", captainToken)
+    .send({});
+  assert.equal(sessionTwo.status, 200);
+
+  const firstValidate = await http
+    .post("/api/team/me/scan-validate")
+    .set("x-auth-token", captainToken)
+    .send({ scanSessionToken: sessionOne.body.scanSessionToken, checkpointPublicId: "WRONG-CHECKPOINT" });
+  assert.equal(firstValidate.status, 400);
+
+  const secondValidate = await http
+    .post("/api/team/me/scan-validate")
+    .set("x-auth-token", captainToken)
+    .send({ scanSessionToken: sessionTwo.body.scanSessionToken, checkpointPublicId: "WRONG-CHECKPOINT" });
+  assert.equal(secondValidate.status, 400);
+
+  const blockedValidate = await http
+    .post("/api/team/me/scan-validate")
+    .set("x-auth-token", captainToken)
+    .send({ scanSessionToken: sessionTwo.body.scanSessionToken, checkpointPublicId: "WRONG-CHECKPOINT" });
+  assert.equal(blockedValidate.status, 429);
+  assert.match(blockedValidate.body.error, /too many scan validations/i);
+});
+
+test("submit endpoint enforces rate limits", async () => {
+  const { seed, http } = await setupWithRateLimits({
+    joinWindowMs: 60_000,
+    joinMax: 10,
+    adminLoginWindowMs: 60_000,
+    adminLoginMax: 10,
+    scanValidateWindowMs: 60_000,
+    scanValidateMax: 20,
+    submitWindowMs: 60_000,
+    submitMax: 1,
+    sabotageTriggerWindowMs: 60_000,
+    sabotageTriggerMax: 20
+  });
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  await ensureScanIfRequired(http, captainToken);
+
+  const firstSubmit = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "rate limit attempt one" });
+  assert.equal(firstSubmit.status, 200);
+
+  const secondSubmit = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "rate limit attempt two" });
+  assert.equal(secondSubmit.status, 429);
+  assert.match(secondSubmit.body.error, /too many submissions/i);
+
+  const blockedSubmit = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "rate limit attempt three" });
+  assert.equal(blockedSubmit.status, 429);
+  assert.match(blockedSubmit.body.error, /too many submissions/i);
+});
+
+test("sabotage trigger endpoint enforces rate limits", async () => {
+  const { seed, http } = await setupWithRateLimits({
+    joinWindowMs: 60_000,
+    joinMax: 10,
+    adminLoginWindowMs: 60_000,
+    adminLoginMax: 10,
+    scanValidateWindowMs: 60_000,
+    scanValidateMax: 20,
+    submitWindowMs: 60_000,
+    submitMax: 20,
+    sabotageTriggerWindowMs: 60_000,
+    sabotageTriggerMax: 1
+  });
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  const catalogResponse = await http.get("/api/sabotage/catalog");
+  assert.equal(catalogResponse.status, 200);
+  const actionId = catalogResponse.body.items[0]?.id as string | undefined;
+  assert.ok(actionId);
+
+  const triggerBody = { actionId };
+
+  const firstTrigger = await http
+    .post("/api/team/me/sabotage/trigger")
+    .set("x-auth-token", captainToken)
+    .send(triggerBody);
+  assert.equal(firstTrigger.status, 200);
+
+  const secondTrigger = await http
+    .post("/api/team/me/sabotage/trigger")
+    .set("x-auth-token", captainToken)
+    .send(triggerBody);
+  assert.equal(secondTrigger.status, 429);
+  assert.match(secondTrigger.body.error, /too many sabotage attempts/i);
+
+  const blockedTrigger = await http
+    .post("/api/team/me/sabotage/trigger")
+    .set("x-auth-token", captainToken)
+    .send(triggerBody);
+  assert.equal(blockedTrigger.status, 429);
+  assert.match(blockedTrigger.body.error, /too many sabotage attempts/i);
 });
 
 test("captain cannot pass a required clue", async () => {
@@ -491,6 +693,121 @@ test("admin can rotate clue qr id and old qr is rejected", async () => {
       checkpointPublicId: rotateResponse.body.qrPublicId
     });
   assert.equal(newQrValidate.status, 200);
+});
+
+test("admin clues endpoint supports source query", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .get("/api/admin/clues?source=production")
+    .set("x-admin-token", adminToken);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.requestedSource, "production");
+  assert.ok(Array.isArray(response.body.clues));
+  assert.ok(response.body.clues.length > 0);
+  assert.ok(response.body.resolvedSource === "production" || response.body.resolvedSource === "default");
+  assert.equal(typeof response.body.fallbackToDefault, "boolean");
+});
+
+test("admin clues endpoint rejects invalid source query", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .get("/api/admin/clues?source=staging")
+    .set("x-admin-token", adminToken);
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /source must be/i);
+});
+
+test("admin can upload test clue file and fetch it via source query", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const uploadedTitle = "Uploaded Test Clue";
+  const uploadPayload = {
+    ...seed,
+    clues: seed.clues.map((clue, index) =>
+      index === 0
+        ? { ...clue, title: uploadedTitle }
+        : clue
+    )
+  };
+
+  let uploadedPath = "";
+
+  try {
+    const uploadResponse = await http
+      .post("/api/admin/clues/upload")
+      .set("x-admin-token", adminToken)
+      .send({ source: "test", seedConfig: uploadPayload });
+
+    assert.equal(uploadResponse.status, 200);
+    assert.equal(uploadResponse.body.source, "test");
+    assert.equal(uploadResponse.body.clueCount, seed.clues.length);
+    assert.equal(typeof uploadResponse.body.sourceFile, "string");
+
+    uploadedPath = uploadResponse.body.sourceFile as string;
+    assert.equal(fs.existsSync(uploadedPath), true);
+
+    const cluesResponse = await http
+      .get("/api/admin/clues?source=test")
+      .set("x-admin-token", adminToken);
+
+    assert.equal(cluesResponse.status, 200);
+    assert.equal(cluesResponse.body.requestedSource, "test");
+    assert.equal(cluesResponse.body.resolvedSource, "test");
+    assert.equal(cluesResponse.body.fallbackToDefault, false);
+    assert.equal(cluesResponse.body.clues[0]?.title, uploadedTitle);
+  } finally {
+    if (uploadedPath) {
+      fs.rmSync(uploadedPath, { force: true });
+    }
+  }
+});
+
+test("admin clue upload rejects invalid payload", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .post("/api/admin/clues/upload")
+    .set("x-admin-token", adminToken)
+    .send({ source: "test", seedConfig: { clues: [] } });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /invalid seed upload payload/i);
+});
+
+test("admin clue template endpoint returns seed config", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .get("/api/admin/clues/template?source=production")
+    .set("x-admin-token", adminToken);
+
+  assert.equal(response.status, 200);
+  assert.equal(response.body.requestedSource, "production");
+  assert.equal(typeof response.body.fallbackToDefault, "boolean");
+  assert.equal(typeof response.body.sourceFile, "string");
+  assert.ok(Array.isArray(response.body.seedConfig?.clues));
+  assert.ok(response.body.seedConfig.clues.length > 0);
+});
+
+test("admin clue template endpoint rejects invalid source", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .get("/api/admin/clues/template?source=preview")
+    .set("x-admin-token", adminToken);
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /source must be/i);
 });
 
 test("admin security and audit endpoints respect limit query", async () => {

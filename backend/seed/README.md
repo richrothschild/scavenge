@@ -4,6 +4,11 @@ Current canonical seed source is the workspace root file:
 
 - `seed-config.json`
 
+Optional variant files for admin clue source switching:
+
+- `seed-config.production.json` (or `seed-config.prod.json`)
+- `seed-config.test.json` (or `seed-config.testing.json`)
+
 Seed command:
 
 - `npm run seed -w backend`

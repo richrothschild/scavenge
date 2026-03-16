@@ -45,6 +45,21 @@ export type SeedConfig = {
   sabotage_catalog?: SeedSabotageAction[];
 };
 
+export type SeedConfigVariant = "test" | "production";
+export type SeedConfigResolvedSource = SeedConfigVariant | "default";
+
+export type SeedConfigVariantResult = {
+  seed: SeedConfig;
+  sourceFile: string;
+  resolvedSource: SeedConfigResolvedSource;
+  fallbackToDefault: boolean;
+};
+
+export type SeedConfigSaveResult = {
+  sourceFile: string;
+  clueCount: number;
+};
+
 type TeamProgressState = {
   clueId: string;
   status: ClueStatus;
@@ -160,11 +175,82 @@ const DEFAULT_SCAN_EXPIRY_SECONDS = 120;
 const buildTeamId = (name: TeamName) => name.toLowerCase();
 const buildRotatedQrId = (clueIndex: number) => `CLUE-${clueIndex + 1}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 
-export const loadSeedConfig = (): SeedConfig => {
-  const candidatePaths = [path.resolve(process.cwd(), "..", "seed-config.json"), path.resolve(process.cwd(), "seed-config.json")];
-  const seedPath = candidatePaths.find((value) => fs.existsSync(value));
-  if (!seedPath) throw new Error("seed-config.json not found. Expected at repo root.");
+const seedSearchRoots = [path.resolve(process.cwd(), ".."), path.resolve(process.cwd())];
+
+const resolveSeedConfigPath = (fileNames: string[]): string | null => {
+  for (const root of seedSearchRoots) {
+    for (const fileName of fileNames) {
+      const candidatePath = path.resolve(root, fileName);
+      if (fs.existsSync(candidatePath)) {
+        return candidatePath;
+      }
+    }
+  }
+
+  return null;
+};
+
+const parseSeedConfigFile = (seedPath: string): SeedConfig => {
   return JSON.parse(fs.readFileSync(seedPath, "utf-8")) as SeedConfig;
+};
+
+const variantFileCandidates: Record<SeedConfigVariant, string[]> = {
+  test: ["seed-config.test.json", "seed-config.testing.json"],
+  production: ["seed-config.production.json", "seed-config.prod.json"]
+};
+
+const resolveSeedStorageRoot = (): string => {
+  for (const root of seedSearchRoots) {
+    const canonical = path.resolve(root, "seed-config.json");
+    if (fs.existsSync(canonical)) {
+      return root;
+    }
+  }
+
+  return seedSearchRoots[0];
+};
+
+export const loadSeedConfig = (): SeedConfig => {
+  const seedPath = resolveSeedConfigPath(["seed-config.json"]);
+  if (!seedPath) throw new Error("seed-config.json not found. Expected at repo root.");
+  return parseSeedConfigFile(seedPath);
+};
+
+export const loadSeedConfigVariant = (variant: SeedConfigVariant): SeedConfigVariantResult => {
+  const variantPath = resolveSeedConfigPath(variantFileCandidates[variant]);
+  if (variantPath) {
+    return {
+      seed: parseSeedConfigFile(variantPath),
+      sourceFile: variantPath,
+      resolvedSource: variant,
+      fallbackToDefault: false
+    };
+  }
+
+  const defaultSeedPath = resolveSeedConfigPath(["seed-config.json"]);
+  if (!defaultSeedPath) {
+    throw new Error("seed-config.json not found. Expected at repo root.");
+  }
+
+  return {
+    seed: parseSeedConfigFile(defaultSeedPath),
+    sourceFile: defaultSeedPath,
+    resolvedSource: "default",
+    fallbackToDefault: true
+  };
+};
+
+export const saveSeedConfigVariant = (variant: SeedConfigVariant, seed: SeedConfig): SeedConfigSaveResult => {
+  const targetRoot = resolveSeedStorageRoot();
+  const targetFileName = variantFileCandidates[variant][0];
+  const targetPath = path.resolve(targetRoot, targetFileName);
+
+  fs.writeFileSync(targetPath, `${JSON.stringify(seed, null, 2)}\n`, "utf-8");
+
+  return {
+    sourceFile: targetPath,
+    clueCount: seed.clues.length
+  };
 };
 
 const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {

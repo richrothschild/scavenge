@@ -17,7 +17,17 @@ const EnvSchema = z.object({
   ADMIN_PASSWORD: isProduction ? z.string().min(1) : z.string().min(1).default("changeme"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o"),
-  AI_PROVIDER: z.enum(["openai", "anthropic", "mock"]).default("mock")
+  AI_PROVIDER: z.enum(["openai", "anthropic", "mock"]).default("mock"),
+  RATE_LIMIT_JOIN_WINDOW_MS: z.coerce.number().int().positive().default(300000),
+  RATE_LIMIT_JOIN_MAX: z.coerce.number().int().positive().default(30),
+  RATE_LIMIT_ADMIN_LOGIN_WINDOW_MS: z.coerce.number().int().positive().default(600000),
+  RATE_LIMIT_ADMIN_LOGIN_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_SCAN_VALIDATE_WINDOW_MS: z.coerce.number().int().positive().default(60000),
+  RATE_LIMIT_SCAN_VALIDATE_MAX: z.coerce.number().int().positive().default(20),
+  RATE_LIMIT_SUBMIT_WINDOW_MS: z.coerce.number().int().positive().default(300000),
+  RATE_LIMIT_SUBMIT_MAX: z.coerce.number().int().positive().default(10),
+  RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS: z.coerce.number().int().positive().default(300000),
+  RATE_LIMIT_SABOTAGE_TRIGGER_MAX: z.coerce.number().int().positive().default(6)
 });
 
 export const env = EnvSchema.parse(process.env);
