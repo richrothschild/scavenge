@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
     "lint": "echo \"lint not configured yet\"",
-    "test": "tsx --test \"tests/**/*.test.ts\"",
+    "test": "tsx --test tests/*.test.ts",
     "migrate": "echo \"run SQL files in backend/migrations against your database\"",
     "seed": "tsx src/scripts/seed.ts",
     "smoke:prod": "powershell -ExecutionPolicy Bypass -File scripts/smoke-prod.ps1",
