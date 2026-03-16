@@ -11,6 +11,7 @@
     "test": "tsx --test tests/*.test.ts",
     "migrate": "echo \"run SQL files in backend/migrations against your database\"",
     "seed": "tsx src/scripts/seed.ts",
+    "reset-state": "tsx src/scripts/reset-state.ts",
     "smoke:prod": "powershell -ExecutionPolicy Bypass -File scripts/smoke-prod.ps1",
     "synthetic:prod": "powershell -ExecutionPolicy Bypass -File scripts/synthetic-prod.ps1"
   },
