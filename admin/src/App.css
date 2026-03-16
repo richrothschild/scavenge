@@ -37,7 +37,8 @@
 }
 
 input,
-button {
+button,
+select {
   padding: 0.55rem 0.65rem;
   border-radius: 6px;
   border: 1px solid #cbd5e1;
@@ -618,6 +619,11 @@ button {
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 1.5rem;
   margin: 1rem 0;
+}
+.clue-source-meta {
+  margin: 0.3rem 0;
+  font-size: 0.85rem;
+  color: #475569;
 }
 .qr-cell {
   display: flex;
