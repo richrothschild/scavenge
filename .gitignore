@@ -4,3 +4,5 @@ coverage/
 .expo/
 *.log
 .env
+playwright-report/
+test-results/
