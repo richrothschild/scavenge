@@ -186,6 +186,11 @@ function App() {
     "x-auth-token": tokenOverride ?? authToken
   });
 
+  const getAdminHeaders = (tokenOverride?: string) => ({
+    "Content-Type": "application/json",
+    "x-admin-token": tokenOverride ?? adminToken
+  });
+
   const adminHeaders = useMemo(
     () => ({ "Content-Type": "application/json", "x-admin-token": adminToken }),
     [adminToken]
@@ -743,10 +748,12 @@ function App() {
     setAdminStartTestBusy(true);
 
     try {
+      let activeAdminToken = adminToken;
+
       setStatusMessage("Resetting to TEST hunt…");
       const resetResponse = await fetch(`${apiBase}/admin/reset-seed`, {
         method: "POST",
-        headers: adminHeaders,
+        headers: getAdminHeaders(activeAdminToken),
         body: JSON.stringify({ variant: "test" })
       });
 
@@ -770,12 +777,28 @@ function App() {
 
         setStatusMessage("Waiting for backend to come back…");
         await waitForApiReady();
+
+        setStatusMessage("Backend is up. Re-authenticating admin session…");
+        const reloginResponse = await fetch(`${apiBase}/auth/admin/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: adminPassword })
+        });
+
+        if (!reloginResponse.ok) {
+          setStatusMessage(await parseError(reloginResponse, "Admin re-login failed after restart"));
+          return;
+        }
+
+        const reloginPayload = await reloginResponse.json() as { token: string };
+        activeAdminToken = reloginPayload.token;
+        setAdminToken(reloginPayload.token);
       }
 
       setStatusMessage("Backend is up. Starting TEST hunt…");
       const statusResponse = await fetch(`${apiBase}/game/status`, {
         method: "POST",
-        headers: adminHeaders,
+        headers: getAdminHeaders(activeAdminToken),
         body: JSON.stringify({ status: "RUNNING" })
       });
 
@@ -786,7 +809,7 @@ function App() {
 
       const statusPayload = await statusResponse.json() as GameStatusPayload;
       setGameStatus(statusPayload);
-      await Promise.all([fetchLeaderboard(), fetchAuditLogs(), fetchReviewQueue(), fetchSecurityEvents()]);
+      await Promise.all([fetchLeaderboard(), fetchTeamAssignments(), fetchAuditLogs(), fetchReviewQueue(), fetchSecurityEvents()]);
       setStatusMessage(`TEST hunt started with ${resetPayload.clueCount} clues (${resetPayload.resolvedSource} source).`);
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);

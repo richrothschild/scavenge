@@ -1,6 +1,5 @@
 import { expect, test } from "@playwright/test";
 
-const joinCode = process.env.E2E_JOIN_CODE ?? "SPADES-AJ29LN";
 const captainPin = process.env.E2E_CAPTAIN_PIN ?? "910546";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "changeme";
 
@@ -12,10 +11,22 @@ const loginAsAdmin = async (page: import("@playwright/test").Page) => {
   await expect(page.locator("p.status")).not.toContainText("Admin login failed");
 };
 
-test("join flow advances to in-game screen", async ({ page }) => {
+const assignParticipant = async (page: import("@playwright/test").Page, teamName: "SPADES" | "HEARTS" | "DIAMONDS" | "CLUBS", participantName: string) => {
+  await page.goto("/admin");
+  await loginAsAdmin(page);
+  await page.getByRole("button", { name: "Setup" }).click();
+  await page.locator("section select").first().selectOption(teamName.toLowerCase());
+  await page.getByPlaceholder("Assign player name to selected team").fill(participantName);
+  await page.getByRole("button", { name: "Assign To Team" }).click();
+  await expect(page.getByRole("button", { name: participantName })).toBeVisible();
+};
+
+test("assigned player can join from the roster-based first page", async ({ page }) => {
+  await assignParticipant(page, "SPADES", "E2E Captain");
+
   await page.goto("/");
-  await page.getByTestId("join-code-input").fill(joinCode);
-  await page.getByTestId("display-name-input").fill("E2E Member");
+  await page.getByTestId("team-chip-spades").click();
+  await page.getByRole("button", { name: "E2E Captain" }).click();
   await page.getByTestId("captain-pin-input").fill(captainPin);
   await page.getByTestId("join-submit-btn").click();
 
@@ -23,13 +34,21 @@ test("join flow advances to in-game screen", async ({ page }) => {
   await expect(page.getByRole("button", { name: "🗺️ Clue" })).toBeVisible();
 });
 
-test("team quick-select chips populate join field", async ({ page }) => {
+test("setup assignment appears on the first page roster and can be removed", async ({ page }) => {
+  await assignParticipant(page, "HEARTS", "E2E Hearts Member");
+
   await page.goto("/");
   await page.getByTestId("team-chip-hearts").click();
-  await expect(page.getByTestId("join-code-input")).toHaveValue("HEARTS");
+  await expect(page.getByRole("button", { name: "E2E Hearts Member" })).toBeVisible();
 
-  await page.getByTestId("join-code-input").fill("DIAMONDS-4AFYXZ");
-  await expect(page.getByTestId("join-code-input")).toHaveValue("DIAMONDS");
+  await page.goto("/admin");
+  await loginAsAdmin(page);
+  await page.getByRole("button", { name: "Setup" }).click();
+  await page.getByRole("button", { name: "E2E Hearts Member" }).click();
+
+  await page.goto("/");
+  await page.getByTestId("team-chip-hearts").click();
+  await expect(page.getByRole("button", { name: "E2E Hearts Member" })).toHaveCount(0);
 });
 
 test("admin login works", async ({ page }) => {

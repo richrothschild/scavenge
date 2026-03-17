@@ -196,6 +196,41 @@ test("admin can assign and move participants between teams", async () => {
   assert.ok(secondRoster.assignedParticipants.includes("Roster Tester"));
 });
 
+test("resetting to a seed variant preserves assigned participants", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  const assignResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: team.name.toLowerCase(), participantName: "Carry Over Player" });
+  assert.equal(assignResponse.status, 200);
+
+  const resetResponse = await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "test" });
+  assert.equal(resetResponse.status, 200);
+  assert.equal(resetResponse.body.variant, "test");
+  assert.equal(resetResponse.body.requiresRestart, true);
+
+  const rosterResponse = await http
+    .get("/api/admin/team-assignments")
+    .set("x-admin-token", adminToken);
+  assert.equal(rosterResponse.status, 200);
+
+  const roster = rosterResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === team.name.toLowerCase());
+  assert.ok(roster);
+  assert.ok(roster.assignedParticipants.includes("Carry Over Player"));
+
+  const joinResponse = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Carry Over Player"
+  });
+  assert.equal(joinResponse.status, 200);
+});
+
 test("join endpoint enforces rate limits", async () => {
   const { seed, http } = await setupWithRateLimits({
     joinWindowMs: 60_000,

@@ -1038,6 +1038,14 @@ export class GameEngine {
   async resetToVariant(variant: SeedConfigVariant) {
     const loaded = loadSeedConfigVariant(variant);
     const freshSnapshot = createInitialSnapshot(loaded.seed);
+
+    for (const team of freshSnapshot.teams) {
+      const existingTeam = this.teamsById.get(team.teamId);
+      if (existingTeam) {
+        team.assignedParticipants = [...existingTeam.assignedParticipants];
+      }
+    }
+
     await this.store.save(freshSnapshot);
     this.auditLogs.push({
       id: crypto.randomUUID(),
