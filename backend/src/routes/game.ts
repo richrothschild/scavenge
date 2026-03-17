@@ -392,7 +392,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
-    return res.json({ teams: gameEngine.getJoinOptions() });
+    return res.json({ teams: gameEngine.getAdminTeamAssignments() });
   });
 
   router.post("/admin/team-assignments/assign", async (req, res) => {

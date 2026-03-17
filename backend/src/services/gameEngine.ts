@@ -573,6 +573,18 @@ export class GameEngine {
       .sort((a, b) => a.teamName.localeCompare(b.teamName));
   }
 
+  getAdminTeamAssignments() {
+    return Array.from(this.teamsById.values())
+      .map((team) => ({
+        teamId: team.teamId,
+        teamName: team.teamName,
+        captainName: team.captainName,
+        captainPin: team.captainPin,
+        assignedParticipants: [...team.assignedParticipants].sort((a, b) => a.localeCompare(b))
+      }))
+      .sort((a, b) => a.teamName.localeCompare(b.teamName));
+  }
+
   async assignParticipantToTeam(teamId: string, participantName: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };

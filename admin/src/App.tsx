@@ -69,6 +69,10 @@ type JoinTeamOption = {
   assignedParticipants: string[];
 };
 
+type AdminTeamAssignment = JoinTeamOption & {
+  captainPin: string;
+};
+
 type GameStatus = "PENDING" | "RUNNING" | "PAUSED" | "ENDED";
 
 type GameStatusPayload = {
@@ -162,7 +166,7 @@ function App() {
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
   const [adminStartTestBusy, setAdminStartTestBusy] = useState(false);
-  const [teamAssignments, setTeamAssignments] = useState<JoinTeamOption[]>([]);
+  const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
   // ── Verdict reveal overlay ────────────────────────────────────
@@ -1849,6 +1853,7 @@ function App() {
                   <div key={team.teamId} className="assignment-card">
                     <div className="assignment-card__title">{team.teamName}</div>
                     <div className="assignment-card__meta">Captain: {team.captainName}</div>
+                    <div className="assignment-card__meta">Captain PIN: {team.captainPin}</div>
                     {team.assignedParticipants.length > 0 ? (
                       <div className="assignment-pill-row">
                         {team.assignedParticipants.map((participantName) => (

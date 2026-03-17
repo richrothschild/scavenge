@@ -37,6 +37,11 @@ test("assigned player can join from the roster-based first page", async ({ page 
 test("setup assignment appears on the first page roster and can be removed", async ({ page }) => {
   await assignParticipant(page, "HEARTS", "E2E Hearts Member");
 
+  await page.goto("/admin");
+  await loginAsAdmin(page);
+  await page.getByRole("button", { name: "Setup" }).click();
+  await expect(page.locator(".assignment-card__meta", { hasText: "Captain PIN:" }).first()).toBeVisible();
+
   await page.goto("/");
   await page.getByTestId("team-chip-hearts").click();
   await expect(page.getByRole("button", { name: "E2E Hearts Member" })).toBeVisible();

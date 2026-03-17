@@ -163,6 +163,15 @@ test("join endpoint rejects unassigned participants", async () => {
   assert.match(joinResponse.body.error, /assigned name/i);
 });
 
+test("join options do not expose captain pins", async () => {
+  const { http } = await setup();
+
+  const joinOptionsResponse = await http.get("/api/join/options");
+  assert.equal(joinOptionsResponse.status, 200);
+  assert.ok(Array.isArray(joinOptionsResponse.body.teams));
+  assert.equal("captainPin" in joinOptionsResponse.body.teams[0], false);
+});
+
 test("admin can assign and move participants between teams", async () => {
   const { seed, http } = await setup();
   const adminToken = await loginAsAdmin(http);
@@ -192,6 +201,8 @@ test("admin can assign and move participants between teams", async () => {
   const secondRoster = rosterResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === secondTeam.name.toLowerCase());
   assert.ok(firstRoster);
   assert.ok(secondRoster);
+  assert.equal(firstRoster.captainPin, firstTeam.captain_pin);
+  assert.equal(secondRoster.captainPin, secondTeam.captain_pin);
   assert.ok(!firstRoster.assignedParticipants.includes("Roster Tester"));
   assert.ok(secondRoster.assignedParticipants.includes("Roster Tester"));
 });
