@@ -2,150 +2,96 @@
   "schema_version": "2.0.0",
   "dataset_type": "scavenger_hunt",
   "environment": "test",
-  "dataset_id": "sf-waterfront-buena-vista-2026-test",
+  "dataset_id": "south-bay-test-clues-v2",
   "metadata": {
-    "name": "San Francisco Waterfront Scavenger Hunt (Test)",
-    "city": "San Francisco",
-    "state": "CA",
+    "name": "South Bay Test Clues",
+    "region": "Sunnyvale / San Jose / Cupertino",
     "country": "USA",
     "timezone": "America/Los_Angeles",
-    "start_location": {
-      "name": "Hotel Zephyr",
-      "address": "250 Beach St, San Francisco, CA"
-    },
-    "finish_location": {
-      "name": "Buena Vista Cafe",
-      "address": "2765 Hyde St, San Francisco, CA"
-    },
-    "target_duration_minutes": 90,
-    "minimum_clues_to_finish": 5,
-    "transport_modes": [
-      "walk",
-      "waymo",
-      "cable_car"
-    ]
-  },
-  "scoring": {
-    "default_points": 1,
-    "special_points": {
-      "sf-test-001": 2,
-      "sf-test-finale-001": 2,
-      "sf-test-tiebreak-001": 3
-    },
-    "hint_penalty_model": {
-      "enabled": true,
-      "rules": [
-        {
-          "clue_id": "sf-test-001",
-          "hint_reduces_points_to": 1
-        }
-      ]
-    },
-    "tie_breaker": {
-      "type": "highest_points_then_fastest_finish",
-      "fallback_clue_id": "sf-test-tiebreak-001"
-    }
+    "purpose": "Development and schema validation dataset"
   },
   "zones": [
     {
-      "zone_id": "zone-1",
-      "name": "Pier 39 / Hotel Zephyr",
-      "route_order": 1,
-      "transport_mode": "walk"
+      "zone_id": "tb-1",
+      "name": "Sunnyvale",
+      "route_order": 1
     },
     {
-      "zone_id": "zone-2",
-      "name": "Aquatic Park",
-      "route_order": 2,
-      "transport_mode": "walk"
+      "zone_id": "tb-2",
+      "name": "Moffett Field",
+      "route_order": 2
     },
     {
-      "zone_id": "zone-3",
-      "name": "Hyde Street Pier",
-      "route_order": 3,
-      "transport_mode": "walk"
+      "zone_id": "tb-3",
+      "name": "Cupertino / Los Altos",
+      "route_order": 3
     },
     {
-      "zone_id": "zone-4",
-      "name": "Waymo Segment",
-      "route_order": 4,
-      "transport_mode": "waymo"
-    },
-    {
-      "zone_id": "zone-5",
-      "name": "Cable Car to Buena Vista",
-      "route_order": 5,
-      "transport_mode": "cable_car"
-    }
-  ],
-  "transport_segments": [
-    {
-      "segment_id": "transport-test-001",
-      "type": "waymo",
-      "pickup_area": "Hyde Street Pier",
-      "dropoff_area": "1083 Lombard St"
-    },
-    {
-      "segment_id": "transport-test-002",
-      "type": "cable_car",
-      "line": "Powell-Hyde",
-      "destination": "Hyde & Beach turnaround"
+      "zone_id": "tb-4",
+      "name": "San Jose",
+      "route_order": 4
     }
   ],
   "clues": [
     {
-      "id": "sf-test-001",
+      "id": "sb-001",
       "route_order": 1,
-      "zone_id": "zone-1",
-      "title": "Gold Rush Ground",
-      "theme": "Gold Rush landfill",
-      "difficulty": "hard",
-      "points": 2
+      "zone_id": "tb-1",
+      "title": "Cold War Valley",
+      "theme": "Defense industry",
+      "difficulty": "medium",
+      "clue": "Before Silicon Valley built consumer tech, it helped design missile systems for the U.S. Navy. Which aerospace company\u2019s Sunnyvale division built the Polaris missile system?",
+      "answer": "Lockheed Missiles & Space Company"
     },
     {
-      "id": "sf-test-002",
+      "id": "sb-002",
       "route_order": 2,
-      "zone_id": "zone-2",
-      "title": "Federal Concrete",
-      "theme": "WPA construction",
-      "difficulty": "medium",
-      "points": 1
+      "zone_id": "tb-2",
+      "title": "Hangar One",
+      "theme": "Airship infrastructure",
+      "difficulty": "easy",
+      "clue": "Find the enormous structure once used to house airships longer than football fields at Moffett Field. What is the name of the hangar?",
+      "answer": "Hangar One"
     },
     {
-      "id": "sf-test-003",
+      "id": "sb-003",
       "route_order": 3,
-      "zone_id": "zone-3",
-      "title": "Silent Pacific",
-      "theme": "WWII submarine",
-      "difficulty": "medium",
-      "points": 1
+      "zone_id": "tb-1",
+      "title": "Arcade Origins",
+      "theme": "Video game history",
+      "difficulty": "easy",
+      "clue": "Which company headquartered in Sunnyvale helped launch the arcade video game industry in the 1970s with games like Pong and Asteroids?",
+      "answer": "Atari"
     },
     {
-      "id": "sf-test-004",
+      "id": "sb-004",
       "route_order": 4,
-      "zone_id": "zone-4",
-      "title": "Waymo Transition",
-      "theme": "Autonomous ride",
+      "zone_id": "tb-3",
+      "title": "The Garage Myth",
+      "theme": "Apple founding story",
       "difficulty": "medium",
-      "points": 1
+      "clue": "Two Steves launched a company that defined personal computing. Name the company and the two founders.",
+      "answer": "Apple \u2014 Steve Jobs and Steve Wozniak"
     },
     {
-      "id": "sf-test-finale-001",
+      "id": "sb-005",
       "route_order": 5,
-      "zone_id": "zone-5",
-      "title": "Improvisation and Geography",
-      "theme": "Grateful Dead",
-      "difficulty": "medium",
-      "points": 2
+      "zone_id": "tb-4",
+      "title": "Valley of Heart\u2019s Delight",
+      "theme": "Agricultural history",
+      "difficulty": "easy",
+      "clue": "Before semiconductors, Santa Clara Valley was famous for orchards and dried fruit exports. What nickname did the region earn?",
+      "answer": "The Valley of Heart\u2019s Delight"
     },
     {
-      "id": "sf-test-tiebreak-001",
-      "route_order": 99,
-      "zone_id": "zone-5",
-      "title": "Loma Prieta Synthesis",
-      "theme": "1989 earthquake",
-      "difficulty": "very_hard",
-      "points": 3
+      "id": "sb-006",
+      "route_order": 6,
+      "zone_id": "tb-4",
+      "title": "Winchester Mystery",
+      "theme": "Architecture and folklore",
+      "difficulty": "easy",
+      "clue": "This San Jose mansion is famous for staircases to nowhere and doors that open into walls. What is the house called, and which firearms company funded it?",
+      "answer": "Winchester Mystery House \u2014 Winchester Repeating Arms"
     }
   ]
 }
