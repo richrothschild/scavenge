@@ -172,6 +172,7 @@ function App() {
   const [captainAssignmentTeamId, setCaptainAssignmentTeamId] = useState("spades");
   const [captainAssignmentName, setCaptainAssignmentName] = useState("");
   const [captainAssignmentPin, setCaptainAssignmentPin] = useState("");
+  const [captainAssignmentForceOverride, setCaptainAssignmentForceOverride] = useState(false);
   // ── Verdict reveal overlay ────────────────────────────────────
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
@@ -353,6 +354,13 @@ function App() {
 
   const selectedJoinParticipants = selectedJoinTeam?.assignedParticipants ?? [];
 
+  const selectedCaptainAssignmentTeam = useMemo(
+    () => teamAssignments.find((team) => team.teamId === captainAssignmentTeamId) ?? null,
+    [captainAssignmentTeamId, teamAssignments]
+  );
+
+  const captainAssignmentRoster = selectedCaptainAssignmentTeam?.assignedParticipants ?? [];
+
   const buildDictatorSmsBody = (isTest: boolean) => {
     const teamName = normalizeTeamCodeInput(teamState?.teamName ?? joinCode) || "UNKNOWN";
     const clueNumber = (teamState?.currentClueIndex ?? 0) + 1;
@@ -497,13 +505,22 @@ function App() {
       return;
     }
 
+    const captainOnRoster = captainAssignmentRoster.some(
+      (name) => name.trim().toLowerCase() === trimmedCaptainName.toLowerCase()
+    );
+    if (!captainOnRoster) {
+      setStatusMessage("Captain must already be assigned to this team roster before promotion");
+      return;
+    }
+
     const response = await fetch(`${apiBase}/admin/team-assignments/captain`, {
       method: "POST",
       headers: adminHeaders,
       body: JSON.stringify({
         teamId: captainAssignmentTeamId,
         captainName: trimmedCaptainName,
-        captainPin: trimmedCaptainPin
+        captainPin: trimmedCaptainPin,
+        forceOverride: captainAssignmentForceOverride
       })
     });
     const payload = await response.json();
@@ -512,7 +529,11 @@ function App() {
       return;
     }
 
-    setStatusMessage(`Updated captain for ${payload.teamId} to ${payload.captainName}`);
+    setStatusMessage(
+      payload.forceOverrideApplied
+        ? `Updated captain for ${payload.teamId} to ${payload.captainName} (force override)`
+        : `Updated captain for ${payload.teamId} to ${payload.captainName}`
+    );
     await Promise.all([fetchTeamAssignments(), fetchAuditLogs()]);
   };
 
@@ -1104,7 +1125,13 @@ function App() {
     if (selectedTeam.teamId !== captainAssignmentTeamId) {
       setCaptainAssignmentTeamId(selectedTeam.teamId);
     }
-    setCaptainAssignmentName(selectedTeam.captainName);
+    const rosterIncludesCaptain = selectedTeam.assignedParticipants.some(
+      (name) => name.trim().toLowerCase() === selectedTeam.captainName.trim().toLowerCase()
+    );
+    const defaultCaptainName = rosterIncludesCaptain
+      ? selectedTeam.captainName
+      : (selectedTeam.assignedParticipants[0] ?? "");
+    setCaptainAssignmentName(defaultCaptainName);
     setCaptainAssignmentPin(selectedTeam.captainPin);
   }, [captainAssignmentTeamId, teamAssignments]);
 
@@ -1917,12 +1944,18 @@ function App() {
                     <option key={team} value={team.toLowerCase()}>{team}</option>
                   ))}
                 </select>
-                <input
+                <select
                   data-testid="captain-name-input"
                   value={captainAssignmentName}
                   onChange={(event) => setCaptainAssignmentName(event.target.value)}
-                  placeholder="Captain name"
-                />
+                >
+                  <option value="">Select assigned participant</option>
+                  {captainAssignmentRoster.map((participantName) => (
+                    <option key={`${captainAssignmentTeamId}-${participantName}`} value={participantName}>
+                      {participantName}
+                    </option>
+                  ))}
+                </select>
                 <input
                   data-testid="captain-pin-admin-input"
                   value={captainAssignmentPin}
@@ -1931,8 +1964,20 @@ function App() {
                   inputMode="numeric"
                   maxLength={6}
                 />
+                <label>
+                  <input
+                    data-testid="captain-force-override-toggle"
+                    type="checkbox"
+                    checked={captainAssignmentForceOverride}
+                    onChange={(event) => setCaptainAssignmentForceOverride(event.target.checked)}
+                  />
+                  Allow reassignment while RUNNING (force override)
+                </label>
+                {captainAssignmentRoster.length === 0 && (
+                  <div className="assignment-empty">Assign a participant to this team before setting captain.</div>
+                )}
                 <div className="actions-row">
-                  <button data-testid="assign-captain-button" type="submit">Assign Captain + PIN</button>
+                  <button data-testid="assign-captain-button" type="submit" disabled={captainAssignmentRoster.length === 0}>Assign Captain + PIN</button>
                   <button type="button" onClick={() => { void fetchTeamAssignments(); }}>Refresh Captains</button>
                 </div>
               </form>

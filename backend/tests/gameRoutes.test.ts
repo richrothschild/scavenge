@@ -15,6 +15,8 @@ type Emission = {
   payload: unknown;
 };
 
+const adminPassword = process.env.ADMIN_PASSWORD ?? "changeme";
+
 const createIoSpy = () => {
   const emissions: Emission[] = [];
   const io = {
@@ -91,7 +93,7 @@ const joinAsCaptain = async (http: SuperTest<Test>, joinCode: string, captainPin
 };
 
 const loginAsAdmin = async (http: SuperTest<Test>) => {
-  const response = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  const response = await http.post("/api/auth/admin/login").send({ password: adminPassword });
   assert.equal(response.status, 200);
   return response.body.token as string;
 };
@@ -172,7 +174,7 @@ test("join options do not expose captain pins", async () => {
   assert.equal("captainPin" in joinOptionsResponse.body.teams[0], false);
 });
 
-test("admin can assign and move participants between teams", async () => {
+test("admin blocks participant reassignment across teams once assigned", async () => {
   const { seed, http } = await setup();
   const adminToken = await loginAsAdmin(http);
   const firstTeam = seed.teams[0];
@@ -189,8 +191,8 @@ test("admin can assign and move participants between teams", async () => {
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
     .send({ teamId: secondTeam.name.toLowerCase(), participantName: "Roster Tester" });
-  assert.equal(assignSecond.status, 200);
-  assert.equal(assignSecond.body.movedFromTeamId, firstTeam.name.toLowerCase());
+  assert.equal(assignSecond.status, 400);
+  assert.match(assignSecond.body.error, /team changes are not allowed once assigned/i);
 
   const rosterResponse = await http
     .get("/api/admin/team-assignments")
@@ -203,14 +205,20 @@ test("admin can assign and move participants between teams", async () => {
   assert.ok(secondRoster);
   assert.equal(firstRoster.captainPin, firstTeam.captain_pin);
   assert.equal(secondRoster.captainPin, secondTeam.captain_pin);
-  assert.ok(!firstRoster.assignedParticipants.includes("Roster Tester"));
-  assert.ok(secondRoster.assignedParticipants.includes("Roster Tester"));
+  assert.ok(firstRoster.assignedParticipants.includes("Roster Tester"));
+  assert.ok(!secondRoster.assignedParticipants.includes("Roster Tester"));
 });
 
 test("admin can reassign captain and update captain pin", async () => {
   const { seed, http } = await setup();
   const adminToken = await loginAsAdmin(http);
   const targetTeam = seed.teams[0];
+
+  const assignResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: targetTeam.name.toLowerCase(), participantName: "Backup Captain" });
+  assert.equal(assignResponse.status, 200);
 
   const updateResponse = await http
     .post("/api/admin/team-assignments/captain")
@@ -224,6 +232,7 @@ test("admin can reassign captain and update captain pin", async () => {
   assert.equal(updateResponse.body.teamId, targetTeam.name.toLowerCase());
   assert.equal(updateResponse.body.captainName, "Backup Captain");
   assert.equal(updateResponse.body.captainPin, "123456");
+  assert.equal(updateResponse.body.forceOverrideApplied, false);
 
   const rosterResponse = await http
     .get("/api/admin/team-assignments")
@@ -249,6 +258,65 @@ test("admin can reassign captain and update captain pin", async () => {
   });
   assert.equal(newCaptainPinJoin.status, 200);
   assert.equal(newCaptainPinJoin.body.session.role, "CAPTAIN");
+});
+
+test("captain reassignment requires captain to be assigned on team roster", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const targetTeam = seed.teams[0];
+
+  const response = await http
+    .post("/api/admin/team-assignments/captain")
+    .set("x-admin-token", adminToken)
+    .send({
+      teamId: targetTeam.name.toLowerCase(),
+      captainName: "Roster Missing Captain",
+      captainPin: "654321"
+    });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /must be assigned to this team roster/i);
+});
+
+test("captain reassignment while RUNNING requires force override", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const targetTeam = seed.teams[0];
+
+  const assignResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .send({ teamId: targetTeam.name.toLowerCase(), participantName: "Running Override Captain" });
+  assert.equal(assignResponse.status, 200);
+
+  const statusResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .send({ status: "RUNNING" });
+  assert.equal(statusResponse.status, 200);
+
+  const blockedResponse = await http
+    .post("/api/admin/team-assignments/captain")
+    .set("x-admin-token", adminToken)
+    .send({
+      teamId: targetTeam.name.toLowerCase(),
+      captainName: "Running Override Captain",
+      captainPin: "222222"
+    });
+  assert.equal(blockedResponse.status, 400);
+  assert.match(blockedResponse.body.error, /blocked while game is RUNNING/i);
+
+  const forcedResponse = await http
+    .post("/api/admin/team-assignments/captain")
+    .set("x-admin-token", adminToken)
+    .send({
+      teamId: targetTeam.name.toLowerCase(),
+      captainName: "Running Override Captain",
+      captainPin: "222222",
+      forceOverride: true
+    });
+  assert.equal(forcedResponse.status, 200);
+  assert.equal(forcedResponse.body.forceOverrideApplied, true);
 });
 
 test("captain reassignment validates pin format", async () => {
@@ -357,13 +425,13 @@ test("admin login endpoint enforces rate limits", async () => {
     sabotageTriggerMax: 20
   });
 
-  const firstLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  const firstLogin = await http.post("/api/auth/admin/login").send({ password: adminPassword });
   assert.equal(firstLogin.status, 200);
 
-  const secondLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  const secondLogin = await http.post("/api/auth/admin/login").send({ password: adminPassword });
   assert.equal(secondLogin.status, 200);
 
-  const thirdLogin = await http.post("/api/auth/admin/login").send({ password: "changeme" });
+  const thirdLogin = await http.post("/api/auth/admin/login").send({ password: adminPassword });
   assert.equal(thirdLogin.status, 429);
   assert.match(thirdLogin.body.error, /too many admin login attempts/i);
 });

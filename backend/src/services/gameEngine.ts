@@ -592,15 +592,19 @@ export class GameEngine {
     const normalizedParticipantName = participantName.trim();
     if (!normalizedParticipantName) return { error: "participantName is required." as const };
 
-    let movedFromTeamId: string | null = null;
-    for (const candidate of this.teamsById.values()) {
-      const existingIndex = candidate.assignedParticipants.findIndex(
+    const alreadyAssignedTeam = Array.from(this.teamsById.values()).find((candidate) =>
+      candidate.assignedParticipants.some(
         (value) => value.trim().toLowerCase() === normalizedParticipantName.toLowerCase()
-      );
-      if (existingIndex >= 0) {
-        candidate.assignedParticipants.splice(existingIndex, 1);
-        movedFromTeamId = candidate.teamId;
-      }
+      )
+    );
+    if (alreadyAssignedTeam && alreadyAssignedTeam.teamId !== teamId) {
+      return {
+        error: `Participant is already assigned to ${alreadyAssignedTeam.teamId}. Team changes are not allowed once assigned.` as const
+      };
+    }
+
+    if (alreadyAssignedTeam && alreadyAssignedTeam.teamId === teamId) {
+      return { teamId, participantName: normalizedParticipantName, movedFromTeamId: null, alreadyAssigned: true };
     }
 
     team.assignedParticipants.push(normalizedParticipantName);
@@ -612,12 +616,12 @@ export class GameEngine {
       targetType: "TEAM",
       targetId: teamId,
       reason: normalizedParticipantName,
-      metadata: { participantName: normalizedParticipantName, movedFromTeamId },
+      metadata: { participantName: normalizedParticipantName, movedFromTeamId: null },
       createdAt: new Date().toISOString()
     });
 
     await this.persist();
-    return { teamId, participantName: normalizedParticipantName, movedFromTeamId };
+    return { teamId, participantName: normalizedParticipantName, movedFromTeamId: null, alreadyAssigned: false };
   }
 
   async removeParticipantFromTeam(teamId: string, participantName: string) {
@@ -648,9 +652,13 @@ export class GameEngine {
     return { teamId, participantName: removedParticipantName };
   }
 
-  async assignCaptainToTeam(teamId: string, captainName: string, captainPin: string) {
+  async assignCaptainToTeam(teamId: string, captainName: string, captainPin: string, forceOverride = false) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
+
+    if (this.gameStatus === "RUNNING" && !forceOverride) {
+      return { error: "Captain reassignment is blocked while game is RUNNING. Set forceOverride=true to proceed." as const };
+    }
 
     const normalizedCaptainName = captainName.trim();
     const normalizedCaptainPin = captainPin.trim();
@@ -660,21 +668,22 @@ export class GameEngine {
       return { error: "captainPin must be exactly 6 digits." as const };
     }
 
-    let movedFromTeamId: string | null = null;
-    for (const candidate of this.teamsById.values()) {
-      const existingIndex = candidate.assignedParticipants.findIndex(
+    const assignedCaptainTeam = Array.from(this.teamsById.values()).find((candidate) =>
+      candidate.assignedParticipants.some(
         (value) => value.trim().toLowerCase() === normalizedCaptainName.toLowerCase()
-      );
-      if (existingIndex >= 0) {
-        candidate.assignedParticipants.splice(existingIndex, 1);
-        if (candidate.teamId !== teamId) {
-          movedFromTeamId = candidate.teamId;
-        }
-      }
+      )
+    );
+    if (assignedCaptainTeam && assignedCaptainTeam.teamId !== teamId) {
+      return {
+        error: `Captain is already assigned to ${assignedCaptainTeam.teamId}. Team changes are not allowed once assigned.` as const
+      };
     }
 
-    team.assignedParticipants.push(normalizedCaptainName);
-    team.assignedParticipants.sort((a, b) => a.localeCompare(b));
+    if (!team.assignedParticipants.some((value) => value.trim().toLowerCase() === normalizedCaptainName.toLowerCase())) {
+      return {
+        error: "Captain must be assigned to this team roster before promotion." as const
+      };
+    }
 
     const previousCaptainName = team.captainName;
     const previousCaptainPin = team.captainPin;
@@ -692,7 +701,7 @@ export class GameEngine {
         previousCaptainPin,
         captainName: normalizedCaptainName,
         captainPin: normalizedCaptainPin,
-        movedFromTeamId
+        forceOverride
       },
       createdAt: new Date().toISOString()
     });
@@ -702,7 +711,7 @@ export class GameEngine {
       teamId,
       captainName: normalizedCaptainName,
       captainPin: normalizedCaptainPin,
-      movedFromTeamId
+      forceOverrideApplied: forceOverride
     };
   }
 

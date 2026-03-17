@@ -436,7 +436,8 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
     const captainName = typeof req.body?.captainName === "string" ? req.body.captainName.trim() : "";
     const captainPin = typeof req.body?.captainPin === "string" ? req.body.captainPin.trim() : "";
-    const result = await gameEngine.assignCaptainToTeam(teamId, captainName, captainPin);
+    const forceOverride = req.body?.forceOverride === true;
+    const result = await gameEngine.assignCaptainToTeam(teamId, captainName, captainPin, forceOverride);
     if ("error" in result) {
       return res.status(400).json(result);
     }

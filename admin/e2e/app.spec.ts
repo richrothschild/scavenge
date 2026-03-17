@@ -26,8 +26,12 @@ test("admin can update captain assignment and pin", async ({ page }) => {
   await loginAsAdmin(page);
   await page.getByRole("button", { name: "Setup" }).click();
 
+  await page.getByTestId("participant-team-select").selectOption("clubs");
+  await page.getByPlaceholder("Assign player name to selected team").fill("E2E Backup Captain");
+  await page.getByTestId("assign-participant-button").click();
+
   await page.getByTestId("captain-team-select").selectOption("clubs");
-  await page.getByTestId("captain-name-input").fill("E2E Backup Captain");
+  await page.getByTestId("captain-name-input").selectOption("E2E Backup Captain");
   await page.getByTestId("captain-pin-admin-input").fill("123456");
   await page.getByTestId("assign-captain-button").click();
 
