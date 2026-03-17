@@ -648,6 +648,64 @@ export class GameEngine {
     return { teamId, participantName: removedParticipantName };
   }
 
+  async assignCaptainToTeam(teamId: string, captainName: string, captainPin: string) {
+    const team = this.teamsById.get(teamId);
+    if (!team) return { error: "Team not found." as const };
+
+    const normalizedCaptainName = captainName.trim();
+    const normalizedCaptainPin = captainPin.trim();
+
+    if (!normalizedCaptainName) return { error: "captainName is required." as const };
+    if (!/^\d{6}$/.test(normalizedCaptainPin)) {
+      return { error: "captainPin must be exactly 6 digits." as const };
+    }
+
+    let movedFromTeamId: string | null = null;
+    for (const candidate of this.teamsById.values()) {
+      const existingIndex = candidate.assignedParticipants.findIndex(
+        (value) => value.trim().toLowerCase() === normalizedCaptainName.toLowerCase()
+      );
+      if (existingIndex >= 0) {
+        candidate.assignedParticipants.splice(existingIndex, 1);
+        if (candidate.teamId !== teamId) {
+          movedFromTeamId = candidate.teamId;
+        }
+      }
+    }
+
+    team.assignedParticipants.push(normalizedCaptainName);
+    team.assignedParticipants.sort((a, b) => a.localeCompare(b));
+
+    const previousCaptainName = team.captainName;
+    const previousCaptainPin = team.captainPin;
+    team.captainName = normalizedCaptainName;
+    team.captainPin = normalizedCaptainPin;
+
+    this.auditLogs.push({
+      id: crypto.randomUUID(),
+      action: "TEAM_CAPTAIN_UPDATED",
+      targetType: "TEAM",
+      targetId: teamId,
+      reason: normalizedCaptainName,
+      metadata: {
+        previousCaptainName,
+        previousCaptainPin,
+        captainName: normalizedCaptainName,
+        captainPin: normalizedCaptainPin,
+        movedFromTeamId
+      },
+      createdAt: new Date().toISOString()
+    });
+
+    await this.persist();
+    return {
+      teamId,
+      captainName: normalizedCaptainName,
+      captainPin: normalizedCaptainPin,
+      movedFromTeamId
+    };
+  }
+
   getTeamState(teamId: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return null;

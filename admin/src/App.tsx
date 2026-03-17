@@ -169,6 +169,9 @@ function App() {
   const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
+  const [captainAssignmentTeamId, setCaptainAssignmentTeamId] = useState("spades");
+  const [captainAssignmentName, setCaptainAssignmentName] = useState("");
+  const [captainAssignmentPin, setCaptainAssignmentPin] = useState("");
   // ── Verdict reveal overlay ────────────────────────────────────
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
@@ -476,6 +479,40 @@ function App() {
         ? `Moved ${payload.participantName} from ${payload.movedFromTeamId} to ${payload.teamId}`
         : `Assigned ${payload.participantName} to ${payload.teamId}`
     );
+    await Promise.all([fetchTeamAssignments(), fetchAuditLogs()]);
+  };
+
+  const assignCaptainToTeam = async (event: FormEvent) => {
+    event.preventDefault();
+    const trimmedCaptainName = captainAssignmentName.trim();
+    const trimmedCaptainPin = captainAssignmentPin.trim();
+
+    if (!trimmedCaptainName) {
+      setStatusMessage("Captain name is required");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(trimmedCaptainPin)) {
+      setStatusMessage("Captain PIN must be exactly 6 digits");
+      return;
+    }
+
+    const response = await fetch(`${apiBase}/admin/team-assignments/captain`, {
+      method: "POST",
+      headers: adminHeaders,
+      body: JSON.stringify({
+        teamId: captainAssignmentTeamId,
+        captainName: trimmedCaptainName,
+        captainPin: trimmedCaptainPin
+      })
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      setStatusMessage(payload.error || "Captain assignment failed");
+      return;
+    }
+
+    setStatusMessage(`Updated captain for ${payload.teamId} to ${payload.captainName}`);
     await Promise.all([fetchTeamAssignments(), fetchAuditLogs()]);
   };
 
@@ -1053,6 +1090,23 @@ function App() {
     void fetchTeamAssignments();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, adminView, mode]);
+
+  useEffect(() => {
+    if (teamAssignments.length === 0) {
+      return;
+    }
+
+    const selectedTeam = teamAssignments.find((team) => team.teamId === captainAssignmentTeamId) ?? teamAssignments[0];
+    if (!selectedTeam) {
+      return;
+    }
+
+    if (selectedTeam.teamId !== captainAssignmentTeamId) {
+      setCaptainAssignmentTeamId(selectedTeam.teamId);
+    }
+    setCaptainAssignmentName(selectedTeam.captainName);
+    setCaptainAssignmentPin(selectedTeam.captainPin);
+  }, [captainAssignmentTeamId, teamAssignments]);
 
   // ── Player: countdown timer ───────────────────────────────────
   useEffect(() => {
@@ -1832,7 +1886,11 @@ function App() {
             <>
               <h3>Team Assignments</h3>
               <form onSubmit={assignParticipantToTeam} className="panel">
-                <select value={assignmentTeamId} onChange={(event) => setAssignmentTeamId(event.target.value)}>
+                <select
+                  data-testid="participant-team-select"
+                  value={assignmentTeamId}
+                  onChange={(event) => setAssignmentTeamId(event.target.value)}
+                >
                   {TEAM_SUIT_OPTIONS.map((team) => (
                     <option key={team} value={team.toLowerCase()}>{team}</option>
                   ))}
@@ -1843,8 +1901,39 @@ function App() {
                   placeholder="Assign player name to selected team"
                 />
                 <div className="actions-row">
-                  <button type="submit">Assign To Team</button>
+                  <button data-testid="assign-participant-button" type="submit">Assign To Team</button>
                   <button type="button" onClick={() => { void fetchTeamAssignments(); }}>Refresh Assignments</button>
+                </div>
+              </form>
+
+              <h3>Captain Assignment</h3>
+              <form onSubmit={assignCaptainToTeam} className="panel">
+                <select
+                  data-testid="captain-team-select"
+                  value={captainAssignmentTeamId}
+                  onChange={(event) => setCaptainAssignmentTeamId(event.target.value)}
+                >
+                  {TEAM_SUIT_OPTIONS.map((team) => (
+                    <option key={team} value={team.toLowerCase()}>{team}</option>
+                  ))}
+                </select>
+                <input
+                  data-testid="captain-name-input"
+                  value={captainAssignmentName}
+                  onChange={(event) => setCaptainAssignmentName(event.target.value)}
+                  placeholder="Captain name"
+                />
+                <input
+                  data-testid="captain-pin-admin-input"
+                  value={captainAssignmentPin}
+                  onChange={(event) => setCaptainAssignmentPin(event.target.value)}
+                  placeholder="Captain PIN (6 digits)"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <div className="actions-row">
+                  <button data-testid="assign-captain-button" type="submit">Assign Captain + PIN</button>
+                  <button type="button" onClick={() => { void fetchTeamAssignments(); }}>Refresh Captains</button>
                 </div>
               </form>
 

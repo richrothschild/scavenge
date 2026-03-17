@@ -427,6 +427,23 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.status(200).json(result);
   });
 
+  router.post("/admin/team-assignments/captain", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+
+    const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
+    const captainName = typeof req.body?.captainName === "string" ? req.body.captainName.trim() : "";
+    const captainPin = typeof req.body?.captainPin === "string" ? req.body.captainPin.trim() : "";
+    const result = await gameEngine.assignCaptainToTeam(teamId, captainName, captainPin);
+    if ("error" in result) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  });
+
   router.post("/admin/team/:teamId/deduct", async (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {

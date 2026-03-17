@@ -207,6 +207,68 @@ test("admin can assign and move participants between teams", async () => {
   assert.ok(secondRoster.assignedParticipants.includes("Roster Tester"));
 });
 
+test("admin can reassign captain and update captain pin", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const targetTeam = seed.teams[0];
+
+  const updateResponse = await http
+    .post("/api/admin/team-assignments/captain")
+    .set("x-admin-token", adminToken)
+    .send({
+      teamId: targetTeam.name.toLowerCase(),
+      captainName: "Backup Captain",
+      captainPin: "123456"
+    });
+  assert.equal(updateResponse.status, 200);
+  assert.equal(updateResponse.body.teamId, targetTeam.name.toLowerCase());
+  assert.equal(updateResponse.body.captainName, "Backup Captain");
+  assert.equal(updateResponse.body.captainPin, "123456");
+
+  const rosterResponse = await http
+    .get("/api/admin/team-assignments")
+    .set("x-admin-token", adminToken);
+  assert.equal(rosterResponse.status, 200);
+  const roster = rosterResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === targetTeam.name.toLowerCase());
+  assert.ok(roster);
+  assert.equal(roster.captainName, "Backup Captain");
+  assert.equal(roster.captainPin, "123456");
+  assert.ok(roster.assignedParticipants.includes("Backup Captain"));
+
+  const oldCaptainPinJoin = await http.post("/api/auth/join").send({
+    joinCode: targetTeam.join_code,
+    displayName: "Backup Captain",
+    captainPin: targetTeam.captain_pin
+  });
+  assert.equal(oldCaptainPinJoin.status, 401);
+
+  const newCaptainPinJoin = await http.post("/api/auth/join").send({
+    joinCode: targetTeam.join_code,
+    displayName: "Backup Captain",
+    captainPin: "123456"
+  });
+  assert.equal(newCaptainPinJoin.status, 200);
+  assert.equal(newCaptainPinJoin.body.session.role, "CAPTAIN");
+});
+
+test("captain reassignment validates pin format", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const targetTeam = seed.teams[0];
+
+  const response = await http
+    .post("/api/admin/team-assignments/captain")
+    .set("x-admin-token", adminToken)
+    .send({
+      teamId: targetTeam.name.toLowerCase(),
+      captainName: "Pin Failure Captain",
+      captainPin: "12ab"
+    });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /captainPin must be exactly 6 digits/i);
+});
+
 test("resetting to a seed variant preserves assigned participants", async () => {
   const { seed, http } = await setup();
   const adminToken = await loginAsAdmin(http);

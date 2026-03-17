@@ -15,11 +15,31 @@ const assignParticipant = async (page: import("@playwright/test").Page, teamName
   await page.goto("/admin");
   await loginAsAdmin(page);
   await page.getByRole("button", { name: "Setup" }).click();
-  await page.locator("section select").first().selectOption(teamName.toLowerCase());
+  await page.getByTestId("participant-team-select").selectOption(teamName.toLowerCase());
   await page.getByPlaceholder("Assign player name to selected team").fill(participantName);
-  await page.getByRole("button", { name: "Assign To Team" }).click();
+  await page.getByTestId("assign-participant-button").click();
   await expect(page.getByRole("button", { name: participantName })).toBeVisible();
 };
+
+test("admin can update captain assignment and pin", async ({ page }) => {
+  await page.goto("/admin");
+  await loginAsAdmin(page);
+  await page.getByRole("button", { name: "Setup" }).click();
+
+  await page.getByTestId("captain-team-select").selectOption("clubs");
+  await page.getByTestId("captain-name-input").fill("E2E Backup Captain");
+  await page.getByTestId("captain-pin-admin-input").fill("123456");
+  await page.getByTestId("assign-captain-button").click();
+
+  await expect(page.getByText("Updated captain for clubs to E2E Backup Captain")).toBeVisible();
+
+  await page.goto("/");
+  await page.getByTestId("team-chip-clubs").click();
+  await page.getByRole("button", { name: "E2E Backup Captain" }).click();
+  await page.getByTestId("captain-pin-input").fill("123456");
+  await page.getByTestId("join-submit-btn").click();
+  await expect(page.getByTestId("player-header")).toBeVisible();
+});
 
 test("assigned player can join from the roster-based first page", async ({ page }) => {
   await assignParticipant(page, "SPADES", "E2E Captain");
