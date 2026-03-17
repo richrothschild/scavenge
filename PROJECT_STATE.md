@@ -2,6 +2,11 @@
 
 Last updated: 2026-03-16
 
+## Active Execution Plan
+
+- Two-sprint plan document: `planning/two_sprint_execution_plan_2026-03-17.md`
+- Jira-ready backlog for this plan: `planning/jira_backlog_two_sprint_execution_2026-03-17.csv`
+
 ## Current Status: 🟡 PHASE 3 IN PROGRESS — production backend/web now deployed with Postgres persistence; mobile API shell remains in progress
 
 ## Phase Progress
