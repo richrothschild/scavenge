@@ -1,4 +1,5 @@
-import { Router } from "express";
+import { createHash } from "node:crypto";
+import { Request, Response, Router } from "express";
 import { Server } from "socket.io";
 import { z } from "zod";
 import { env } from "../config/env";
@@ -38,6 +39,130 @@ const seedConfigUploadSchema = z.object({
   source: z.enum(["test", "production"]),
   seedConfig: z.unknown()
 });
+
+type GameStatus = "PENDING" | "RUNNING" | "PAUSED" | "ENDED";
+type MutationPolicyAction = "PLAYER_GAMEPLAY_MUTATION" | "ADMIN_LIVE_OPS_MUTATION";
+
+const mutationPolicyMatrix: Record<GameStatus, Record<MutationPolicyAction, boolean>> = {
+  PENDING: {
+    PLAYER_GAMEPLAY_MUTATION: false,
+    ADMIN_LIVE_OPS_MUTATION: false
+  },
+  RUNNING: {
+    PLAYER_GAMEPLAY_MUTATION: true,
+    ADMIN_LIVE_OPS_MUTATION: true
+  },
+  PAUSED: {
+    PLAYER_GAMEPLAY_MUTATION: false,
+    ADMIN_LIVE_OPS_MUTATION: true
+  },
+  ENDED: {
+    PLAYER_GAMEPLAY_MUTATION: false,
+    ADMIN_LIVE_OPS_MUTATION: false
+  }
+};
+
+type IdempotencyCacheEntry = {
+  requestHash: string;
+  statusCode: number;
+  payload: unknown;
+};
+
+type IdempotencyResolution =
+  | { replayed: true }
+  | {
+      replayed: false;
+      cache: (statusCode: number, payload: unknown) => void;
+    };
+
+const idempotencyCache = new Map<string, IdempotencyCacheEntry>();
+
+const canonicalize = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => canonicalize(entry));
+  }
+
+  if (value && typeof value === "object") {
+    const objectValue = value as Record<string, unknown>;
+    const sortedKeys = Object.keys(objectValue).sort((a, b) => a.localeCompare(b));
+    const output: Record<string, unknown> = {};
+    for (const key of sortedKeys) {
+      output[key] = canonicalize(objectValue[key]);
+    }
+    return output;
+  }
+
+  return value;
+};
+
+const computeIdempotencyHash = (req: Request) => {
+  const normalizedPayload = canonicalize({
+    params: req.params,
+    query: req.query,
+    body: req.body ?? null
+  });
+
+  return createHash("sha256").update(JSON.stringify(normalizedPayload)).digest("hex");
+};
+
+const resolveIdempotency = (
+  req: Request,
+  res: Response,
+  scope: string
+): IdempotencyResolution | null => {
+  const rawHeader = req.headers["x-idempotency-key"];
+  const idempotencyKey = Array.isArray(rawHeader)
+    ? rawHeader[0]?.trim() ?? ""
+    : typeof rawHeader === "string"
+      ? rawHeader.trim()
+      : "";
+
+  if (!idempotencyKey) {
+    res.status(400).json({ error: "x-idempotency-key header is required for this operation." });
+    return null;
+  }
+
+  const requestHash = computeIdempotencyHash(req);
+  const cacheKey = `${scope}:${idempotencyKey}`;
+  const existing = idempotencyCache.get(cacheKey);
+
+  if (existing) {
+    if (existing.requestHash !== requestHash) {
+      res.status(409).json({ error: "Idempotency key already used with a different request payload." });
+      return null;
+    }
+
+    res.status(existing.statusCode).json(existing.payload);
+    return { replayed: true };
+  }
+
+  return {
+    replayed: false,
+    cache: (statusCode, payload) => {
+      idempotencyCache.set(cacheKey, { requestHash, statusCode, payload });
+    }
+  };
+};
+
+const enforceMutationPolicy = (
+  res: Response,
+  gameEngine: GameEngine,
+  action: MutationPolicyAction,
+  operation: string
+) => {
+  const status = gameEngine.getGameStatus().status as GameStatus;
+  const allowed = mutationPolicyMatrix[status]?.[action] ?? false;
+  if (allowed) {
+    return true;
+  }
+
+  res.status(423).json({
+    error: `${operation} is blocked while game status is ${status}.`,
+    status,
+    operation
+  });
+  return false;
+};
 
 export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => {
   const router = Router();
@@ -82,12 +207,21 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
+    const idempotency = resolveIdempotency(req, res, "admin:game-status");
+    if (!idempotency) {
+      return;
+    }
+    if (idempotency.replayed) {
+      return;
+    }
+
     const status = req.body?.status;
     if (status !== "PENDING" && status !== "RUNNING" && status !== "PAUSED" && status !== "ENDED") {
       return res.status(400).json({ error: "Invalid game status." });
     }
 
     const next = await gameEngine.setGameStatus(status);
+    idempotency.cache(200, next);
     const io = req.app.get("io") as Server | undefined;
     io?.emit("game:status_changed", next);
     return res.json(next);
@@ -156,6 +290,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Auth token required." });
     }
 
+    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "scan-session")) {
+      return;
+    }
+
     const result = gameEngine.createScanSession(session.teamId);
     if ("error" in result) {
       return res.status(400).json(result);
@@ -169,6 +307,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const session = gameEngine.getSession(authToken);
     if (!session) {
       return res.status(401).json({ error: "Auth token required." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "scan-validate")) {
+      return;
     }
 
     const scanSessionToken = typeof req.body?.scanSessionToken === "string" ? req.body.scanSessionToken : "";
@@ -194,6 +336,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
     if (session.role !== "CAPTAIN") {
       return res.status(403).json({ error: "Only captains may submit clues." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "submit")) {
+      return;
     }
 
     const clue = gameEngine.getCurrentClue(session.teamId);
@@ -233,7 +379,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       io?.emit("submission:needs_review", { teamId: session.teamId, submissionId: result.submissionId });
     }
 
-    return res.status(200).json({ ...result, ai: judgment });
+    return res.status(200).json({ ...result, ai: judgment, teamState: state });
   });
 
   router.post("/team/me/pass", async (req, res) => {
@@ -244,6 +390,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
     if (session.role !== "CAPTAIN") {
       return res.status(403).json({ error: "Only captains may pass clues." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "pass")) {
+      return;
     }
 
     const result = await gameEngine.passCurrentClue(session.teamId);
@@ -258,7 +408,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       currentClueIndex: state?.currentClueIndex
     });
 
-    return res.status(200).json(result);
+    return res.status(200).json({ ...result, teamState: state });
   });
 
   router.post("/team/me/sabotage/trigger", async (req, res) => {
@@ -269,6 +419,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
     if (session.role !== "CAPTAIN") {
       return res.status(403).json({ error: "Only captains may trigger sabotage." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "sabotage-trigger")) {
+      return;
     }
 
     const actionId = typeof req.body?.actionId === "string" ? req.body.actionId : "";
@@ -401,6 +555,14 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
+    const idempotency = resolveIdempotency(req, res, "admin:team-assignment-assign");
+    if (!idempotency) {
+      return;
+    }
+    if (idempotency.replayed) {
+      return;
+    }
+
     const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
     const participantName = typeof req.body?.participantName === "string" ? req.body.participantName.trim() : "";
     const result = await gameEngine.assignParticipantToTeam(teamId, participantName);
@@ -408,6 +570,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(400).json(result);
     }
 
+    idempotency.cache(200, result);
     return res.status(200).json(result);
   });
 
@@ -433,6 +596,14 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
+    const idempotency = resolveIdempotency(req, res, "admin:team-assignment-captain");
+    if (!idempotency) {
+      return;
+    }
+    if (idempotency.replayed) {
+      return;
+    }
+
     const teamId = typeof req.body?.teamId === "string" ? req.body.teamId.trim() : "";
     const captainName = typeof req.body?.captainName === "string" ? req.body.captainName.trim() : "";
     const captainPin = typeof req.body?.captainPin === "string" ? req.body.captainPin.trim() : "";
@@ -442,6 +613,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(400).json(result);
     }
 
+    idempotency.cache(200, result);
     return res.status(200).json(result);
   });
 
@@ -449,6 +621,18 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {
       return res.status(401).json({ error: "Admin token required." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "deduct-points")) {
+      return;
+    }
+
+    const idempotency = resolveIdempotency(req, res, "admin:team-deduct");
+    if (!idempotency) {
+      return;
+    }
+    if (idempotency.replayed) {
+      return;
     }
 
     const teamId = req.params.teamId;
@@ -463,6 +647,8 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(400).json(result);
     }
 
+    idempotency.cache(200, result);
+
     const io = req.app.get("io") as Server | undefined;
     io?.emit("leaderboard:updated", { teams: gameEngine.getLeaderboard() });
 
@@ -473,6 +659,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {
       return res.status(401).json({ error: "Admin token required." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "award-points")) {
+      return;
     }
 
     const teamId = req.params.teamId;
@@ -497,6 +687,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {
       return res.status(401).json({ error: "Admin token required." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "send-hint")) {
+      return;
     }
 
     const teamId = req.params.teamId;
@@ -566,6 +760,18 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "reopen-clue")) {
+      return;
+    }
+
+    const idempotency = resolveIdempotency(req, res, "admin:team-reopen-clue");
+    if (!idempotency) {
+      return;
+    }
+    if (idempotency.replayed) {
+      return;
+    }
+
     const teamId = req.params.teamId;
     const clueIndex = typeof req.body?.clueIndex === "number" ? req.body.clueIndex : -1;
     const reason = typeof req.body?.reason === "string" ? req.body.reason : "";
@@ -579,6 +785,8 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(400).json(result);
     }
 
+    idempotency.cache(200, result);
+
     const io = req.app.get("io") as Server | undefined;
     io?.to(teamId).emit("admin:clue_reopened", result);
 
@@ -591,6 +799,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       return res.status(401).json({ error: "Admin token required." });
     }
 
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "invalidate-scan-sessions")) {
+      return;
+    }
+
     const teamId = typeof req.body?.teamId === "string" ? req.body.teamId : undefined;
     const result = await gameEngine.invalidateScanSessions(teamId);
     return res.status(200).json(result);
@@ -600,6 +812,10 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
     if (!gameEngine.isAdminTokenValid(adminToken)) {
       return res.status(401).json({ error: "Admin token required." });
+    }
+
+    if (!enforceMutationPolicy(res, gameEngine, "ADMIN_LIVE_OPS_MUTATION", "rotate-qr")) {
+      return;
     }
 
     const clueIndex = Number(req.params.clueIndex);

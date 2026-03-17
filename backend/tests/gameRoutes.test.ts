@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
@@ -16,6 +17,13 @@ type Emission = {
 };
 
 const adminPassword = process.env.ADMIN_PASSWORD ?? "changeme";
+const idempotencyKey = (scope: string) => `${scope}-${crypto.randomUUID()}`;
+
+const setAdminMutationHeaders = (req: Test, adminToken: string, scope: string) => {
+  req.set("x-admin-token", adminToken);
+  req.set("x-idempotency-key", idempotencyKey(scope));
+  return req;
+};
 
 const createIoSpy = () => {
   const emissions: Emission[] = [];
@@ -36,6 +44,7 @@ const createIoSpy = () => {
 
 const setup = async () => {
   const seed = loadSeedConfig();
+  seed.game.status = "RUNNING";
   const gameEngine = await GameEngine.create(seed, new MemoryStateStore());
   const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"));
   const ioSpy = createIoSpy();
@@ -46,6 +55,7 @@ const setup = async () => {
 
 const setupWithRateLimits = async (authRateLimitConfig: AuthRateLimitConfig) => {
   const seed = loadSeedConfig();
+  seed.game.status = "RUNNING";
   const gameEngine = await GameEngine.create(seed, new MemoryStateStore());
   const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"), authRateLimitConfig);
   const ioSpy = createIoSpy();
@@ -64,10 +74,11 @@ const resolveVariantPathForTests = (fileName: string) => {
 
 const assignParticipant = async (http: SuperTest<Test>, joinCode: string, participantName: string) => {
   const adminToken = await loginAsAdmin(http);
-  const response = await http
-    .post("/api/admin/team-assignments/assign")
-    .set("x-admin-token", adminToken)
-    .send({ teamId: teamIdFromJoinCode(joinCode), participantName });
+  const response = await setAdminMutationHeaders(
+    http.post("/api/admin/team-assignments/assign"),
+    adminToken,
+    "test-assign-participant"
+  ).send({ teamId: teamIdFromJoinCode(joinCode), participantName });
   assert.equal(response.status, 200);
 };
 
@@ -183,6 +194,7 @@ test("admin blocks participant reassignment across teams once assigned", async (
   const assignFirst = await http
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("assign-first"))
     .send({ teamId: firstTeam.name.toLowerCase(), participantName: "Roster Tester" });
   assert.equal(assignFirst.status, 200);
   assert.equal(assignFirst.body.movedFromTeamId, null);
@@ -190,6 +202,7 @@ test("admin blocks participant reassignment across teams once assigned", async (
   const assignSecond = await http
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("assign-second"))
     .send({ teamId: secondTeam.name.toLowerCase(), participantName: "Roster Tester" });
   assert.equal(assignSecond.status, 400);
   assert.match(assignSecond.body.error, /team changes are not allowed once assigned/i);
@@ -214,15 +227,24 @@ test("admin can reassign captain and update captain pin", async () => {
   const adminToken = await loginAsAdmin(http);
   const targetTeam = seed.teams[0];
 
+  const pauseResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-update-pause"))
+    .send({ status: "PAUSED" });
+  assert.equal(pauseResponse.status, 200);
+
   const assignResponse = await http
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("assign-captain-roster"))
     .send({ teamId: targetTeam.name.toLowerCase(), participantName: "Backup Captain" });
   assert.equal(assignResponse.status, 200);
 
   const updateResponse = await http
     .post("/api/admin/team-assignments/captain")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-update"))
     .send({
       teamId: targetTeam.name.toLowerCase(),
       captainName: "Backup Captain",
@@ -265,9 +287,17 @@ test("captain reassignment requires captain to be assigned on team roster", asyn
   const adminToken = await loginAsAdmin(http);
   const targetTeam = seed.teams[0];
 
+  const pauseResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-roster-pause"))
+    .send({ status: "PAUSED" });
+  assert.equal(pauseResponse.status, 200);
+
   const response = await http
     .post("/api/admin/team-assignments/captain")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-roster-required"))
     .send({
       teamId: targetTeam.name.toLowerCase(),
       captainName: "Roster Missing Captain",
@@ -286,18 +316,21 @@ test("captain reassignment while RUNNING requires force override", async () => {
   const assignResponse = await http
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("running-assign"))
     .send({ teamId: targetTeam.name.toLowerCase(), participantName: "Running Override Captain" });
   assert.equal(assignResponse.status, 200);
 
   const statusResponse = await http
     .post("/api/game/status")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("running-status"))
     .send({ status: "RUNNING" });
   assert.equal(statusResponse.status, 200);
 
   const blockedResponse = await http
     .post("/api/admin/team-assignments/captain")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("running-captain-blocked"))
     .send({
       teamId: targetTeam.name.toLowerCase(),
       captainName: "Running Override Captain",
@@ -309,6 +342,7 @@ test("captain reassignment while RUNNING requires force override", async () => {
   const forcedResponse = await http
     .post("/api/admin/team-assignments/captain")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("running-captain-forced"))
     .send({
       teamId: targetTeam.name.toLowerCase(),
       captainName: "Running Override Captain",
@@ -324,9 +358,17 @@ test("captain reassignment validates pin format", async () => {
   const adminToken = await loginAsAdmin(http);
   const targetTeam = seed.teams[0];
 
+  const pauseResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-pin-pause"))
+    .send({ status: "PAUSED" });
+  assert.equal(pauseResponse.status, 200);
+
   const response = await http
     .post("/api/admin/team-assignments/captain")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("captain-pin-validation"))
     .send({
       teamId: targetTeam.name.toLowerCase(),
       captainName: "Pin Failure Captain",
@@ -337,6 +379,98 @@ test("captain reassignment validates pin format", async () => {
   assert.match(response.body.error, /captainPin must be exactly 6 digits/i);
 });
 
+test("critical admin mutations require x-idempotency-key", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const response = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .send({ status: "RUNNING" });
+
+  assert.equal(response.status, 400);
+  assert.match(response.body.error, /x-idempotency-key header is required/i);
+});
+
+test("admin mutation idempotency replays same payload and rejects conflicting payload", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const idempotency = idempotencyKey("idempotency-replay");
+  const teamId = seed.teams[0].name.toLowerCase();
+
+  const firstResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotency)
+    .send({ teamId, participantName: "Replay Tester" });
+  assert.equal(firstResponse.status, 200);
+
+  const replayResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotency)
+    .send({ teamId, participantName: "Replay Tester" });
+  assert.equal(replayResponse.status, 200);
+  assert.deepEqual(replayResponse.body, firstResponse.body);
+
+  const conflictResponse = await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotency)
+    .send({ teamId, participantName: "Different Replay Tester" });
+  assert.equal(conflictResponse.status, 409);
+  assert.match(conflictResponse.body.error, /already used with a different request payload/i);
+});
+
+test("player gameplay mutations are blocked while game is PAUSED", async () => {
+  const { seed, http } = await setup();
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+  const adminToken = await loginAsAdmin(http);
+
+  const pauseResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("pause-status"))
+    .send({ status: "PAUSED" });
+  assert.equal(pauseResponse.status, 200);
+
+  const submitResponse = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "attempt while paused" });
+  assert.equal(submitResponse.status, 423);
+  assert.match(submitResponse.body.error, /blocked while game status is PAUSED/i);
+
+  const passResponse = await http
+    .post("/api/team/me/pass")
+    .set("x-auth-token", captainToken)
+    .send({});
+  assert.equal(passResponse.status, 423);
+  assert.match(passResponse.body.error, /blocked while game status is PAUSED/i);
+});
+
+test("admin live-ops mutations are blocked while game is ENDED", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const teamId = seed.teams[0].name.toLowerCase();
+
+  const endResponse = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-status"))
+    .send({ status: "ENDED" });
+  assert.equal(endResponse.status, 200);
+
+  const deductResponse = await http
+    .post(`/api/admin/team/${teamId}/deduct`)
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("ended-deduct"))
+    .send({ amount: 5, reason: "blocked in ended" });
+  assert.equal(deductResponse.status, 423);
+  assert.match(deductResponse.body.error, /blocked while game status is ENDED/i);
+});
+
 test("resetting to a seed variant preserves assigned participants", async () => {
   const { seed, http } = await setup();
   const adminToken = await loginAsAdmin(http);
@@ -345,6 +479,7 @@ test("resetting to a seed variant preserves assigned participants", async () => 
   const assignResponse = await http
     .post("/api/admin/team-assignments/assign")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("seed-preserve-assign"))
     .send({ teamId: team.name.toLowerCase(), participantName: "Carry Over Player" });
   assert.equal(assignResponse.status, 200);
 
@@ -582,6 +717,7 @@ test("captain cannot pass a required clue", async () => {
   const reopenResponse = await http
     .post(`/api/admin/team/${team.name.toLowerCase()}/reopen-clue`)
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("required-clue-reopen"))
     .send({ clueIndex: requiredClueIndex, reason: "Test required pass rule" });
 
   assert.equal(reopenResponse.status, 200);
@@ -712,6 +848,7 @@ test("admin deduction updates leaderboard and writes audit log", async () => {
   const deductResponse = await http
     .post(`/api/admin/team/${teamId}/deduct`)
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("deduct-points"))
     .send({ amount: 10, reason: "Screenshot penalty" });
   assert.equal(deductResponse.status, 200);
   assert.equal(deductResponse.body.amount, 10);
@@ -756,6 +893,30 @@ test("submit pass emits realtime clue and leaderboard events", async () => {
   assert.ok(leaderboardUpdate);
 });
 
+test("submit pass response includes updated team state for immediate UI sync", async () => {
+  const { seed, http } = await setup();
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  const beforeStateResponse = await http
+    .get("/api/team/me/state")
+    .set("x-auth-token", captainToken);
+  assert.equal(beforeStateResponse.status, 200);
+  const beforeClueIndex = beforeStateResponse.body.currentClueIndex as number;
+
+  await ensureScanIfRequired(http, captainToken);
+
+  const submitResponse = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "sync clue advance" });
+  assert.equal(submitResponse.status, 200);
+  assert.equal(submitResponse.body.verdict, "PASS");
+  assert.ok(submitResponse.body.teamState);
+  assert.equal(submitResponse.body.teamState.currentClueIndex, submitResponse.body.nextClueIndex);
+  assert.equal(submitResponse.body.teamState.currentClueIndex, beforeClueIndex + 1);
+});
+
 test("admin clue reopen emits team-scoped realtime event", async () => {
   const { seed, http, emissions } = await setup();
   const team = seed.teams[0];
@@ -765,6 +926,7 @@ test("admin clue reopen emits team-scoped realtime event", async () => {
   const response = await http
     .post(`/api/admin/team/${teamId}/reopen-clue`)
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("reopen-event"))
     .send({ clueIndex: 0, reason: "Manual review window", durationSeconds: 120 });
 
   assert.equal(response.status, 200);
@@ -801,6 +963,7 @@ test("admin game status change emits global realtime event", async () => {
   const response = await http
     .post("/api/game/status")
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("status-realtime"))
     .send({ status: "RUNNING" });
 
   assert.equal(response.status, 200);
@@ -1182,6 +1345,7 @@ test("admin security and audit endpoints respect limit query", async () => {
   const deduct = await http
     .post(`/api/admin/team/${team.name.toLowerCase()}/deduct`)
     .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("limit-deduct"))
     .send({ amount: 5, reason: "limit-check" });
   assert.equal(deduct.status, 200);
 

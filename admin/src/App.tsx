@@ -298,6 +298,18 @@ function App() {
 
   const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
+  const createIdempotencyKey = (scope: string) => {
+    const randomPart = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    return `${scope}-${randomPart}`;
+  };
+
+  const buildAdminMutationHeaders = (scope: string, tokenOverride?: string) => ({
+    ...getAdminHeaders(tokenOverride),
+    "x-idempotency-key": createIdempotencyKey(scope)
+  });
+
   const waitForApiReady = async () => {
     const endpoint = `${apiBase}/health`;
     let lastError = "Backend did not become healthy in time.";
@@ -472,7 +484,7 @@ function App() {
 
     const response = await fetch(`${apiBase}/admin/team-assignments/assign`, {
       method: "POST",
-      headers: adminHeaders,
+      headers: buildAdminMutationHeaders("team-assign"),
       body: JSON.stringify({ teamId: assignmentTeamId, participantName: trimmedName })
     });
     const payload = await response.json();
@@ -515,7 +527,7 @@ function App() {
 
     const response = await fetch(`${apiBase}/admin/team-assignments/captain`, {
       method: "POST",
-      headers: adminHeaders,
+      headers: buildAdminMutationHeaders("captain-assign"),
       body: JSON.stringify({
         teamId: captainAssignmentTeamId,
         captainName: trimmedCaptainName,
@@ -581,7 +593,7 @@ function App() {
       const response = await fetch(`${apiBase}/team/me/submit`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ textContent: submitText, mediaData })
+        body: JSON.stringify({ textContent: submitText, mediaUrl: mediaData })
       });
       const payload = await response.json();
       if (!response.ok) {
@@ -606,8 +618,14 @@ function App() {
         setSubmitText("");
         setSubmitFile(null);
         setSubmitPreviewUrl(null);
+        setRevealedClueIndex(null);
       }
-      await refreshTeamState();
+
+      if (payload.teamState) {
+        setTeamState(payload.teamState);
+      } else {
+        await refreshTeamState();
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -627,6 +645,13 @@ function App() {
     setLastVerdict("PASS");
     setLastFeedback("Clue skipped by captain. You can now request the next clue.");
     setStatusMessage("Clue passed");
+    setRevealedClueIndex(null);
+
+    if (payload.teamState) {
+      setTeamState(payload.teamState);
+      return;
+    }
+
     await refreshTeamState();
   };
 
@@ -782,7 +807,7 @@ function App() {
   const updateGameStatus = async (status: GameStatus) => {
     const response = await fetch(`${apiBase}/game/status`, {
       method: "POST",
-      headers: adminHeaders,
+      headers: buildAdminMutationHeaders("game-status"),
       body: JSON.stringify({ status })
     });
     const payload = await response.json();
@@ -860,7 +885,7 @@ function App() {
       setStatusMessage("Backend is up. Starting TEST hunt…");
       const statusResponse = await fetch(`${apiBase}/game/status`, {
         method: "POST",
-        headers: getAdminHeaders(activeAdminToken),
+        headers: buildAdminMutationHeaders("game-status", activeAdminToken),
         body: JSON.stringify({ status: "RUNNING" })
       });
 
@@ -1238,7 +1263,7 @@ function App() {
 
     const response = await fetch(`${apiBase}/admin/team/${deductTeamId.trim()}/deduct`, {
       method: "POST",
-      headers: adminHeaders,
+      headers: buildAdminMutationHeaders("team-deduct"),
       body: JSON.stringify({ amount, reason: deductReason })
     });
 
@@ -1267,7 +1292,7 @@ function App() {
 
     const response = await fetch(`${apiBase}/admin/team/${reopenTeamId.trim()}/reopen-clue`, {
       method: "POST",
-      headers: adminHeaders,
+      headers: buildAdminMutationHeaders("clue-reopen"),
       body: JSON.stringify({
         clueIndex,
         reason: reopenReason,
@@ -1597,7 +1622,7 @@ function App() {
                                 )}
                               </div>
                               <div className="passes-counter">
-                                {teamState.skippedCount ?? 0} of 5 passes used
+                                {teamState.skippedCount ?? 0} of 5 skips used
                                 {(teamState.skippedCount ?? 0) >= 5 && <span className="passes-exhausted"> · No passes remaining</span>}
                               </div>
                             </div>
