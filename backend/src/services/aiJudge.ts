@@ -23,7 +23,7 @@ export interface AIJudgeProvider {
   judge(input: JudgeInput): Promise<AIJudgeResult>;
 }
 
-const DEFAULT_SIMILARITY_THRESHOLD = 0.9;
+const DEFAULT_SIMILARITY_THRESHOLD = 0.5;
 
 const normalizeForComparison = (value: string) => {
   return value
@@ -213,9 +213,9 @@ Respond ONLY with valid JSON in this exact format (no markdown, no extra text):
 }
 
 Verdict guidelines:
-- PASS (score 70-100): Evidence clearly and convincingly satisfies the clue requirements
-- FAIL (score 0-49): Evidence clearly does NOT satisfy the clue requirements
-- NEEDS_REVIEW (score 50-69): Evidence is ambiguous or you are uncertain; admin should verify
+- PASS (score 1-100): Evidence satisfies the clue requirements in any meaningful way
+- FAIL (score 0): Evidence clearly does NOT satisfy the clue requirements at all
+- NEEDS_REVIEW (score 0, only if truly unable to evaluate): Evidence is completely unreadable or unrelated; admin should verify
 
 Safety flags: use ["NONE"] if no concerns. Otherwise list issues like INAPPROPRIATE_CONTENT, WRONG_LOCATION, APPEARS_STAGED.`;
 
