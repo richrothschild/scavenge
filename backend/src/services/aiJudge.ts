@@ -94,9 +94,10 @@ const answerSimilarity = (expected: string, provided: string) => {
   }
 
   const tokenContainment = expectedTokens.size > 0 ? overlap / expectedTokens.size : 0;
+  const providedContainment = providedTokens.size > 0 ? overlap / providedTokens.size : 0;
   const textSimilarity = diceCoefficient(normalizedExpected, normalizedProvided);
 
-  return Math.max(tokenContainment, textSimilarity);
+  return Math.max(tokenContainment, providedContainment, textSimilarity);
 };
 
 class MockAIJudgeProvider implements AIJudgeProvider {
