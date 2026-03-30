@@ -769,7 +769,6 @@ function App() {
     }
     setAdminToken(payload.token);
     setStatusMessage("Admin logged in");
-    void fetchTeamAssignments();
   };
 
   const fetchReviewQueue = async (pagination?: { limit?: number; offset?: number }) => {
