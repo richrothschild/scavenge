@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { io } from "socket.io-client";
 import { derivePaginationState, parseLimitInput, parseOffsetInput } from "./utils/pagination";
@@ -43,6 +43,10 @@ type ReviewQueueItem = {
   clueIndex: number;
   status: "PENDING" | "RESOLVED";
   createdAt: string;
+  textContent?: string;
+  mediaUrl?: string;
+  aiScore?: number;
+  aiReasons?: string[];
 };
 
 type SecurityEvent = {
@@ -157,11 +161,6 @@ function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState("");
   const [socketConnected, setSocketConnected] = useState(true);
-  // ── Sabotage store ────────────────────────────────────────────
-  const [sabotageCatalog, setSabotageCatalog] = useState<any[]>([]);
-  const [sabotageTab, setSabotageTab] = useState(false);
-  const [sabotageAction, setSabotageAction] = useState("");
-  const [sabotageTarget, setSabotageTarget] = useState("");
   const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
@@ -175,6 +174,7 @@ function App() {
   const [captainAssignmentForceOverride, setCaptainAssignmentForceOverride] = useState(false);
   // ── Verdict reveal overlay ────────────────────────────────────
   const [verdictReveal, setVerdictReveal] = useState<"PASS" | "FAIL" | "NEEDS_REVIEW" | null>(null);
+  const lastSeenClueIndexRef = useRef<number | null>(null);
   // ── Welcome screen ────────────────────────────────────────────
   const [showWelcome, setShowWelcome] = useState(false);
   // ── Clue reveal gate (shows tap-to-reveal on each new clue) ──
@@ -464,10 +464,17 @@ function App() {
     setJoinOptions(payload.teams || []);
   };
 
+  const handleAdminExpired = () => {
+    setAdminToken("");
+    setTeamAssignments([]);
+    setStatusMessage("Admin session expired — please log in again.");
+  };
+
   const fetchTeamAssignments = async () => {
     const response = await fetch(`${apiBase}/admin/team-assignments`, { headers: adminHeaders });
     const payload = await response.json();
     if (!response.ok) {
+      if (response.status === 401) { handleAdminExpired(); return; }
       setStatusMessage(payload.error || "Team assignment fetch failed");
       return;
     }
@@ -489,6 +496,7 @@ function App() {
     });
     const payload = await response.json();
     if (!response.ok) {
+      if (response.status === 401) { handleAdminExpired(); return; }
       setStatusMessage(payload.error || "Team assignment failed");
       return;
     }
@@ -537,6 +545,7 @@ function App() {
     });
     const payload = await response.json();
     if (!response.ok) {
+      if (response.status === 401) { handleAdminExpired(); return; }
       setStatusMessage(payload.error || "Captain assignment failed");
       return;
     }
@@ -578,6 +587,7 @@ function App() {
   };
 
   const submitClue = async () => {
+    const endpoint = `${apiBase}/team/me/submit`;
     setIsSubmitting(true);
     try {
       let mediaData: string | undefined;
@@ -590,30 +600,55 @@ function App() {
         });
       }
 
-      const response = await fetch(`${apiBase}/team/me/submit`, {
+      const response = await fetch(endpoint, {
         method: "POST",
         headers,
         body: JSON.stringify({ textContent: submitText, mediaUrl: mediaData })
       });
-      const payload = await response.json();
+
+      const rawBody = await response.text();
+      let payload: any = {};
+      if (rawBody.trim()) {
+        try {
+          payload = JSON.parse(rawBody);
+        } catch {
+          payload = {};
+        }
+      }
+
       if (!response.ok) {
-        setStatusMessage(payload.error || "Submit failed");
+        const fallback = `Submit failed (HTTP ${response.status})`;
+        const message =
+          typeof payload?.error === "string" && payload.error.trim()
+            ? payload.error
+            : rawBody.trim() && rawBody.length <= 240
+              ? rawBody
+              : fallback;
+        setStatusMessage(message);
+        addToast("error", message);
         return;
       }
 
       const verdict = payload.verdict as "PASS" | "FAIL" | "NEEDS_REVIEW";
-      setLastVerdict(verdict);
+      if (verdict !== "PASS" && verdict !== "FAIL" && verdict !== "NEEDS_REVIEW") {
+        setStatusMessage("Submit succeeded but response was invalid. Refreshing team state.");
+        await refreshTeamState();
+        return;
+      }
+      setLastVerdict(verdict === "PASS" ? null : verdict);
       const reasons = Array.isArray(payload?.ai?.reasons) ? payload.ai.reasons.join("; ") : "";
-      setLastFeedback(reasons || `Submission verdict: ${verdict}`);
+      setLastFeedback(verdict === "PASS" ? "" : (reasons || `Submission verdict: ${verdict}`));
       setStatusMessage(`Submission verdict: ${verdict}`);
       // Verdict reveal + haptic + toast
-      setVerdictReveal(verdict);
+      setVerdictReveal(verdict === "PASS" ? null : verdict);
       haptic(verdict === "PASS" ? [100, 50, 150] : verdict === "FAIL" ? [200] : [50]);
       addToast(
         verdict === "PASS" ? "success" : verdict === "FAIL" ? "error" : "info",
         verdict === "PASS" ? "Correct! Moving to next clue." : verdict === "FAIL" ? "Not quite — check the feedback." : "Submitted for admin review."
       );
-      setTimeout(() => setVerdictReveal(null), verdict === "PASS" ? 3200 : 2500);
+      if (verdict !== "PASS") {
+        setTimeout(() => setVerdictReveal(null), 2500);
+      }
       if (verdict === "PASS") {
         setSubmitText("");
         setSubmitFile(null);
@@ -623,9 +658,12 @@ function App() {
 
       if (payload.teamState) {
         setTeamState(payload.teamState);
-      } else {
-        await refreshTeamState();
       }
+      await refreshTeamState();
+    } catch (error) {
+      const message = formatNetworkError("Submit", endpoint, error);
+      setStatusMessage(message);
+      addToast("error", "Submit failed. Check connection and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -642,8 +680,8 @@ function App() {
       return;
     }
 
-    setLastVerdict("PASS");
-    setLastFeedback("Clue skipped by captain. You can now request the next clue.");
+    setLastVerdict(null);
+    setLastFeedback("");
     setStatusMessage("Clue passed");
     setRevealedClueIndex(null);
 
@@ -653,15 +691,6 @@ function App() {
     }
 
     await refreshTeamState();
-  };
-
-
-
-
-  const fetchSabotageCatalog = async () => {
-    const response = await fetch(`${apiBase}/sabotage/catalog`, { headers });
-    const payload = await response.json();
-    if (response.ok) setSabotageCatalog(payload.items || []);
   };
 
   const uploadAdminCluesFile = async (event: FormEvent) => {
@@ -726,21 +755,6 @@ function App() {
     setStatusMessage(`Downloaded ${source} clue template.`);
   };
 
-  const triggerSabotage = async (actionId: string, targetTeamId: string) => {
-    const response = await fetch(`${apiBase}/team/me/sabotage`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ actionId, targetTeamId: targetTeamId || undefined })
-    });
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatusMessage(payload.error || "Sabotage failed");
-      return;
-    }
-    setStatusMessage("Sabotage triggered!");
-    await refreshTeamState();
-  };
-
   const adminLogin = async (event: FormEvent) => {
     event.preventDefault();
     const response = await fetch(`${apiBase}/auth/admin/login`, {
@@ -755,6 +769,7 @@ function App() {
     }
     setAdminToken(payload.token);
     setStatusMessage("Admin logged in");
+    void fetchTeamAssignments();
   };
 
   const fetchReviewQueue = async (pagination?: { limit?: number; offset?: number }) => {
@@ -1196,7 +1211,6 @@ function App() {
     sock.on("game:status_changed", () => { void fetchGameStatus(); void refreshTeamState(); });
     sock.on("leaderboard:updated", () => { void fetchLeaderboard(); });
     sock.on("submission:verdict_ready", () => { void refreshTeamState(); });
-    sock.on("sabotage:triggered", () => { void refreshTeamState(); });
     sock.on("admin:hint", (data: { clueIndex: number; hintText: string }) => { setAdminHint(data); });
     sock.on("admin:broadcast", (data: { message: string }) => { setBroadcastMsg(data.message); setTimeout(() => setBroadcastMsg(null), 8000); });
     return () => { sock.disconnect(); };
@@ -1213,6 +1227,20 @@ function App() {
     return () => clearInterval(id);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authToken, mode]);
+
+  // ── Player: clear verdict banner when a new clue becomes active ──────────
+  useEffect(() => {
+    if (mode !== "player") return;
+    const currentClueIndex = teamState?.currentClueIndex;
+    if (typeof currentClueIndex !== "number") return;
+
+    if (lastSeenClueIndexRef.current !== null && lastSeenClueIndexRef.current !== currentClueIndex) {
+      setLastVerdict(null);
+      setLastFeedback("");
+    }
+
+    lastSeenClueIndexRef.current = currentClueIndex;
+  }, [mode, teamState?.currentClueIndex]);
 
   // ── Player: clue elapsed timer ────────────────────────────────
   useEffect(() => {
@@ -1418,6 +1446,10 @@ function App() {
                 <div className="offline-banner">⚠️ Reconnecting… some updates may be delayed</div>
               )}
 
+              {statusMessage && statusMessage !== "Ready" && (
+                <div data-testid="player-status-message" className="player-status-banner">{statusMessage}</div>
+              )}
+
               {/* Header */}
               <header data-testid="player-header" className="player-header">
                 <div className="player-header__team">
@@ -1453,20 +1485,16 @@ function App() {
               <div className="player-tabs">
                 <button
                   className={`player-tab${playerTab === "clue" ? " player-tab--active" : ""}`}
-                  onClick={() => { setPlayerTab("clue"); setSabotageTab(false); }}
+                  onClick={() => { setPlayerTab("clue"); }}
                 >🗺️ Clue</button>
                 <button
                   className={`player-tab${playerTab === "leaderboard" ? " player-tab--active" : ""}`}
-                  onClick={() => { setPlayerTab("leaderboard"); setSabotageTab(false); void fetchLeaderboard(); }}
+                  onClick={() => { setPlayerTab("leaderboard"); void fetchLeaderboard(); }}
                 >🏆 Standings</button>
-                <button
-                  className={`player-tab${sabotageTab ? " player-tab--active" : ""}`}
-                  onClick={() => { setSabotageTab(true); setPlayerTab("clue"); void fetchSabotageCatalog(); }}
-                >⚡ Sabotage</button>
               </div>
 
               {/* ── Clue tab ─────────────────────────────────── */}
-              {playerTab === "clue" && !sabotageTab && (
+              {playerTab === "clue" && (
                 <div className="clue-panel">
                   {/* Waiting for the hunt to start */}
                   {gameStatus?.status === "PENDING" ? (
@@ -1549,7 +1577,6 @@ function App() {
                           {/* Verdict */}
                           {lastVerdict && (
                             <div className={`verdict-banner verdict--${lastVerdict === "NEEDS_REVIEW" ? "needs-review" : lastVerdict.toLowerCase()}`}>
-                              {lastVerdict === "PASS" && "✅ Correct! Great work — moving to the next clue."}
                               {lastVerdict === "FAIL" && "❌ Not quite — check the feedback below and try again."}
                               {lastVerdict === "NEEDS_REVIEW" && "⏳ Submitted for admin review. Stand by!"}
                               {lastFeedback && <p className="verdict-feedback">{lastFeedback}</p>}
@@ -1607,7 +1634,7 @@ function App() {
                                   onClick={() => { void submitClue(); }}
                                   disabled={
                                     isSubmitting ||
-                                    (!submitText.trim() && !submitFile) ||
+                                    !submitText.trim() ||
                                     (teamState.currentClue.submission_type === "PHOTO" && !submitFile)
                                   }
                                 >
@@ -1646,7 +1673,7 @@ function App() {
               )}
 
               {/* ── Leaderboard tab ──────────────────────────── */}
-              {playerTab === "leaderboard" && !sabotageTab && (
+              {playerTab === "leaderboard" && (
                 <div className="leaderboard-panel">
                   <div className="lb-heading">Live Standings</div>
                   {leaderboard.length === 0 ? (
@@ -1672,50 +1699,6 @@ function App() {
                     </div>
                   )}
                   <button className="btn-refresh" onClick={() => { void fetchLeaderboard(); }}>🔄 Refresh</button>
-                </div>
-              )}
-
-              {/* ── Sabotage tab ──────────────────────────────── */}
-              {sabotageTab && (
-                <div className="sabotage-panel">
-                  <div className="sabotage-balance">
-                    ⚡ Sabotage Bank: <strong>{(teamState?.sabotageBalance ?? 0).toLocaleString()} pts</strong>
-                  </div>
-                  {sabotageCatalog.length === 0 ? (
-                    <p className="lb-empty">Loading actions…</p>
-                  ) : (
-                    sabotageCatalog.map((action: any) => (
-                      <div key={action.id} className="sabotage-card">
-                        <div className="sabotage-name">{action.name}</div>
-                        <div className="sabotage-desc">{action.description}</div>
-                        <div className="sabotage-meta">
-                          Cost: <strong>{action.cost} pts</strong>
-                          {action.cooldown_seconds > 0 && ` · Cooldown: ${Math.ceil(action.cooldown_seconds / 60)}min`}
-                        </div>
-                        {role === "CAPTAIN" ? (
-                          <div className="sabotage-trigger">
-                            <input
-                              className="join-input"
-                              placeholder="Target team (e.g. SPADES)"
-                              value={sabotageAction === action.id ? sabotageTarget : ""}
-                              onChange={(e) => { setSabotageAction(action.id); setSabotageTarget(e.target.value); }}
-                            />
-                            <button
-                              className="btn-submit"
-                              style={{ marginTop: "0.5rem" }}
-                              onClick={() => { void triggerSabotage(action.id, sabotageAction === action.id ? sabotageTarget : ""); }}
-                              disabled={(teamState?.sabotageBalance ?? 0) < action.cost}
-                            >
-                              Launch Sabotage
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="member-notice" style={{ marginTop: "0.5rem" }}>Only captains can trigger sabotage.</div>
-                        )}
-                      </div>
-                    ))
-                  )}
-                  <button className="btn-refresh" onClick={() => { void fetchSabotageCatalog(); }}>🔄 Refresh</button>
                 </div>
               )}
             </div>
@@ -1751,14 +1734,10 @@ function App() {
                       </ul>
                       <h3>Scoring &amp; Winning</h3>
                       <ul>
-                        <li>Each clue awards points. Speed and accuracy matter.</li>
+                        <li>Each clue awards points based on accuracy.</li>
                         <li>You can pass up to <strong>5 optional clues</strong> — REQUIRED clues cannot be passed.</li>
+                        <li>You must complete at least <strong>9 clues</strong> to be eligible to win.</li>
                         <li>Final score on the leaderboard determines the winner.</li>
-                      </ul>
-                      <h3>Sabotage</h3>
-                      <ul>
-                        <li>Captains can spend points on sabotage actions against rival teams.</li>
-                        <li>Check the ⚡ Sabotage tab to see available actions.</li>
                       </ul>
                     </div>
                   </>
@@ -1769,8 +1748,9 @@ function App() {
                     <h2 className="info-title">📋 Rules</h2>
                     <div className="info-body">
                       <ol>
-                        <li>Each team has exactly <strong>one captain</strong>. Only the captain can reveal clues, submit answers, pass clues, or trigger sabotage.</li>
+                        <li>Each team has exactly <strong>one captain</strong>. Only the captain can reveal clues, submit answers, or pass clues.</li>
                         <li>You may pass up to <strong>5 optional clues</strong>. <strong>REQUIRED clues cannot be passed.</strong></li>
+                        <li>You must complete at least <strong>9 clues</strong> to be eligible to win.</li>
                         <li>Photo submissions must show <strong>at least 2 team members</strong> in the photo.</li>
                         <li><strong>No sharing answers</strong> with other teams. Each team must solve clues independently.</li>
                         <li>Do not travel to a future clue location before unlocking it.</li>
@@ -1929,12 +1909,16 @@ function App() {
             <button data-testid="admin-login-button" type="submit">Login Admin</button>
           </form>
 
+          {!adminToken && (
+            <div className="admin-login-required">🔒 Log in above to manage team assignments and game operations.</div>
+          )}
+
           <div className="tabs admin-tabs">
             <button onClick={() => setAdminView("setup")} className={adminView === "setup" ? "active" : ""}>Setup</button>
             <button onClick={() => setAdminView("live-ops")} className={adminView === "live-ops" ? "active" : ""}>Live Ops</button>
           </div>
 
-          {adminView === "setup" && (
+          {adminView === "setup" && adminToken && (
             <>
               <h3>Team Assignments</h3>
               <form onSubmit={assignParticipantToTeam} className="panel">
@@ -2080,7 +2064,7 @@ function App() {
             </>
           )}
 
-          {adminView === "live-ops" && (
+          {adminView === "live-ops" && adminToken && (
             <>
 
           <div className="panel">
@@ -2196,6 +2180,21 @@ function App() {
                 <span>
                   {item.teamId} / clue {item.clueIndex + 1} / {new Date(item.createdAt).toLocaleTimeString()}
                 </span>
+                {item.textContent && (
+                  <div className="review-text-answer">📝 {item.textContent}</div>
+                )}
+                {item.mediaUrl && (
+                  <div className="review-photo">
+                    <a href={item.mediaUrl} target="_blank" rel="noopener noreferrer">
+                      <img src={item.mediaUrl} alt="Submission" className="review-photo-img" />
+                    </a>
+                  </div>
+                )}
+                {item.aiReasons && item.aiReasons.length > 0 && (
+                  <div className="review-ai-feedback">
+                    🤖 AI score: {item.aiScore ?? "—"} — {item.aiReasons.join("; ")}
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     const parsed = Number(reviewPassPointsOverride);

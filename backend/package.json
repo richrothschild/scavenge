@@ -13,7 +13,8 @@
     "seed": "tsx src/scripts/seed.ts",
     "reset-state": "tsx src/scripts/reset-state.ts",
     "smoke:prod": "powershell -ExecutionPolicy Bypass -File scripts/smoke-prod.ps1",
-    "synthetic:prod": "powershell -ExecutionPolicy Bypass -File scripts/synthetic-prod.ps1"
+    "synthetic:prod": "powershell -ExecutionPolicy Bypass -File scripts/synthetic-prod.ps1",
+    "journey:prod": "powershell -ExecutionPolicy Bypass -File scripts/journey-prod.ps1"
   },
   "dependencies": {
     "cors": "^2.8.5",

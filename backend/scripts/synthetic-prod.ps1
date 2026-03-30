@@ -54,3 +54,4 @@ $result = [PSCustomObject]@{
 
 $result | Format-List
 Write-Host "Synthetic checks passed." -ForegroundColor Green
+

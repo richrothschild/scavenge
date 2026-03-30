@@ -86,6 +86,14 @@ Synthetic checks:
 
 - `npm run synthetic:prod -w backend`
 
+Canary user-journey checks (production-safe with automatic cleanup):
+
+- `npm run journey:prod -w backend`
+
+Optional overrides:
+
+- `powershell -ExecutionPolicy Bypass -File backend/scripts/journey-prod.ps1 -BaseUrl "https://api.boyzweekend.org/api" -WebUrl "https://www.boyzweekend.org" -AdminSecret "<admin-password>" -CanaryTeamId "spades"`
+
 ## 7) Launch checklist
 
 - Confirm all captains can log in with final PINs
@@ -106,3 +114,7 @@ Synthetic checks:
 - Set `PROD_ADMIN_PASSWORD` as a GitHub Actions secret.
 - Use GitHub's built-in Actions notifications for failure alerts (no external webhook secret required).
 - Require the CI workflow as a branch protection check on `main` so production promotion is blocked unless smoke checks pass.
+- Scheduled monitors:
+  - `Synthetic Prod Checks` runs every 10 minutes (`*/10 * * * *`) for fast availability detection.
+  - `Canary Prod Journey` runs hourly (`0 * * * *`) and validates admin/player journey endpoints with automatic canary cleanup.
+  - `Canary Prod Journey` opens or updates a GitHub issue automatically when the monitor fails, and closes that issue automatically after a successful recovery run.

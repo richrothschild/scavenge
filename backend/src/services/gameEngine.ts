@@ -25,17 +25,9 @@ type SeedClue = {
   requires_scan: boolean;
   submission_type: "PHOTO" | "VIDEO" | "TEXT" | "NONE";
   ai_rubric: string;
+  expected_answer?: string;
   base_points: number;
   qr_public_id: string;
-};
-
-type SeedSabotageAction = {
-  name: string;
-  description: string;
-  cost: number;
-  cooldown_seconds: number;
-  effect_type: string;
-  effect_duration_seconds?: number;
 };
 
 type SeedConfigV2Zone = {
@@ -52,6 +44,8 @@ type SeedConfigV2Clue = {
   title?: string;
   theme?: string;
   difficulty?: string;
+  clue?: string;
+  answer?: string;
   points?: number;
 };
 
@@ -76,7 +70,6 @@ export type SeedConfig = {
   game: { name: string; status: GameStatus; timezone: string };
   teams: SeedTeam[];
   clues: SeedClue[];
-  sabotage_catalog?: SeedSabotageAction[];
 };
 
 export type SeedConfigVariant = "test" | "production";
@@ -110,11 +103,9 @@ type TeamState = {
   captainPin: string;
   assignedParticipants: string[];
   scoreTotal: number;
-  sabotageBalance: number;
   currentClueIndex: number;
   completedCount: number;
   skippedCount: number;
-  sabotageCooldowns: Record<string, number>;
   clueStates: TeamProgressState[];
 };
 
@@ -146,25 +137,6 @@ type ReviewQueueItem = {
   resolvedAt?: string;
 };
 
-type SabotageAction = {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
-  cooldownSeconds: number;
-  effectType: string;
-  effectDurationSeconds: number;
-};
-
-type SabotagePurchase = {
-  id: string;
-  teamId: string;
-  actionId: string;
-  targetTeamId?: string;
-  costDeducted: number;
-  triggeredAt: string;
-};
-
 type SecurityEvent = {
   id: string;
   teamId: string;
@@ -187,7 +159,7 @@ type AuditLog = {
 
 type TeamEventFeedItem = {
   id: string;
-  type: "SUBMISSION" | "SABOTAGE" | "SECURITY" | "AUDIT";
+  type: "SUBMISSION" | "SECURITY" | "AUDIT";
   timestamp: string;
   title: string;
   details?: Record<string, unknown>;
@@ -199,7 +171,6 @@ export type RuntimeSnapshot = {
   teams: TeamState[];
   submissions: SubmissionRecord[];
   reviewQueue: ReviewQueueItem[];
-  sabotagePurchases: SabotagePurchase[];
   securityEvents: SecurityEvent[];
   auditLogs: AuditLog[];
 };
@@ -238,6 +209,18 @@ const sanitizeQrPublicId = (raw: string) => {
   return normalized || "CLUE-UNKNOWN";
 };
 
+const toPublicClue = (clue: SeedClue) => ({
+  order_index: clue.order_index,
+  title: clue.title,
+  instructions: clue.instructions,
+  required_flag: clue.required_flag,
+  transport_mode: clue.transport_mode,
+  requires_scan: clue.requires_scan,
+  submission_type: clue.submission_type,
+  base_points: clue.base_points,
+  qr_public_id: clue.qr_public_id
+});
+
 const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): SeedConfig => {
   const fallbackTeams = fallbackSeed?.teams ?? [];
   if (fallbackTeams.length === 0) {
@@ -270,7 +253,8 @@ const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): Se
       const title = clue.title?.trim() || `Clue ${clue.route_order}`;
       const theme = clue.theme?.trim();
       const difficulty = clue.difficulty?.trim();
-      const generatedInstructions = [
+      const cluePrompt = clue.clue?.trim();
+      const generatedInstructions = cluePrompt || [
         `Use this clue title and theme to locate the correct place: ${title}.`,
         theme ? `Theme: ${theme}.` : "",
         difficulty ? `Difficulty: ${difficulty}.` : "",
@@ -286,6 +270,7 @@ const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): Se
         requires_scan: false,
         submission_type: isFinal ? "TEXT" : "PHOTO",
         ai_rubric: `PASS when the team submission credibly matches clue '${title}'${theme ? ` (${theme})` : ""}.`,
+        expected_answer: clue.answer?.trim() || undefined,
         base_points: basePoints,
         qr_public_id: sanitizeQrPublicId(clue.id || `CLUE-${index + 1}`)
       };
@@ -302,8 +287,7 @@ const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): Se
       timezone: value.metadata?.timezone?.trim() || fallbackSeed?.game.timezone || "America/Los_Angeles"
     },
     teams: fallbackTeams,
-    clues,
-    sabotage_catalog: fallbackSeed?.sabotage_catalog ?? []
+    clues
   };
 };
 
@@ -410,11 +394,9 @@ const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
     captainPin: team.captain_pin,
     assignedParticipants: [],
     scoreTotal: 0,
-    sabotageBalance: 100,
     currentClueIndex: 0,
     completedCount: 0,
     skippedCount: 0,
-    sabotageCooldowns: {},
     clueStates: clues.map((clue, index) => ({
       clueId: clue.qr_public_id || `CLUE-${index + 1}`,
       status: (index === 0 ? "ACTIVE" : "LOCKED") as ClueStatus,
@@ -429,7 +411,6 @@ const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
     teams,
     submissions: [],
     reviewQueue: [],
-    sabotagePurchases: [],
     securityEvents: [],
     auditLogs: []
   };
@@ -445,14 +426,12 @@ export class GameEngine {
   private readonly adminSessions = new Set<string>();
   private readonly submissions: SubmissionRecord[];
   private readonly reviewQueue: ReviewQueueItem[];
-  private readonly sabotageCatalog: SabotageAction[];
-  private readonly sabotagePurchases: SabotagePurchase[];
   private readonly securityEvents: SecurityEvent[];
   private readonly auditLogs: AuditLog[];
   private readonly clueQrOverrides: Record<number, string>;
   private gameStatus: GameStatus;
 
-  private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot) {
+  private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot, private readonly variant: SeedConfigVariant = "production") {
     this.clues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
     this.store = store;
     this.gameStatus = snapshot.gameStatus;
@@ -465,16 +444,6 @@ export class GameEngine {
     }
     this.submissions = [...snapshot.submissions];
     this.reviewQueue = [...snapshot.reviewQueue];
-    this.sabotageCatalog = (seed.sabotage_catalog ?? []).map((action, index) => ({
-      id: `sabotage-${index + 1}`,
-      name: action.name,
-      description: action.description,
-      cost: action.cost,
-      cooldownSeconds: action.cooldown_seconds,
-      effectType: action.effect_type,
-      effectDurationSeconds: action.effect_duration_seconds ?? 0
-    }));
-    this.sabotagePurchases = [...snapshot.sabotagePurchases];
     this.securityEvents = [...snapshot.securityEvents];
     this.auditLogs = [...snapshot.auditLogs];
     snapshot.teams.forEach((team) => {
@@ -492,9 +461,9 @@ export class GameEngine {
     });
   }
 
-  static async create(seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>) {
+  static async create(seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, variant: SeedConfigVariant = "production") {
     const snapshot = (await store.load()) ?? createInitialSnapshot(seed);
-    const engine = new GameEngine(seed, store, snapshot);
+    const engine = new GameEngine(seed, store, snapshot, variant);
     await engine.persist();
     return engine;
   }
@@ -506,7 +475,6 @@ export class GameEngine {
       teams: Array.from(this.teamsById.values()),
       submissions: this.submissions,
       reviewQueue: this.reviewQueue,
-      sabotagePurchases: this.sabotagePurchases,
       securityEvents: this.securityEvents,
       auditLogs: this.auditLogs
     });
@@ -548,7 +516,9 @@ export class GameEngine {
     }
 
     let role: ParticipantRole = "MEMBER";
-    if (captainPin) {
+    if (this.variant === "test") {
+      role = "CAPTAIN";
+    } else if (captainPin) {
       if (captainPin !== team.captainPin) return { error: "Invalid captain PIN." as const };
       role = "CAPTAIN";
     }
@@ -720,7 +690,19 @@ export class GameEngine {
     if (!team) return null;
     const currentClue = this.clues[team.currentClueIndex];
     const eligibilityStatus = team.completedCount >= MIN_COMPLETED_FOR_ELIGIBILITY ? "ELIGIBLE" : "INELIGIBLE";
-    return { ...team, eligibilityStatus, currentClue };
+    return {
+      teamId: team.teamId,
+      teamName: team.teamName,
+      joinCode: team.joinCode,
+      captainName: team.captainName,
+      scoreTotal: team.scoreTotal,
+      currentClueIndex: team.currentClueIndex,
+      completedCount: team.completedCount,
+      skippedCount: team.skippedCount,
+      clueStates: team.clueStates,
+      eligibilityStatus,
+      currentClue: currentClue ? toPublicClue(currentClue) : null
+    };
   }
 
   getLeaderboard() {
@@ -820,16 +802,24 @@ export class GameEngine {
       .filter((item) => item.status === "PENDING")
       .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
+    const page = pending.slice(offset, offset + limit);
+    const items = page.map((item) => {
+      const submission = this.submissions.find((s) => s.id === item.submissionId);
+      return {
+        ...item,
+        textContent: submission?.textContent,
+        mediaUrl: submission?.mediaUrl,
+        aiScore: submission?.aiScore,
+        aiReasons: submission?.reasons,
+      };
+    });
+
     return {
-      items: pending.slice(offset, offset + limit),
+      items,
       total: pending.length,
       limit,
       offset
     };
-  }
-
-  getSabotageCatalog() {
-    return this.sabotageCatalog;
   }
 
   getAllClues() {
@@ -889,21 +879,6 @@ export class GameEngine {
         }
       }));
 
-    const sabotageEvents: TeamEventFeedItem[] = this.sabotagePurchases
-      .filter((entry) => entry.teamId === teamId || entry.targetTeamId === teamId)
-      .map((entry) => ({
-        id: `sabotage:${entry.id}`,
-        type: "SABOTAGE",
-        timestamp: entry.triggeredAt,
-        title: "Sabotage triggered",
-        details: {
-          actionId: entry.actionId,
-          sourceTeamId: entry.teamId,
-          targetTeamId: entry.targetTeamId,
-          costDeducted: entry.costDeducted
-        }
-      }));
-
     const securityEvents: TeamEventFeedItem[] = this.securityEvents
       .filter((entry) => entry.teamId === teamId)
       .map((entry) => ({
@@ -933,7 +908,7 @@ export class GameEngine {
         }
       }));
 
-    const ordered = [...submissionEvents, ...sabotageEvents, ...securityEvents, ...auditEvents]
+    const ordered = [...submissionEvents, ...securityEvents, ...auditEvents]
       .sort((a, b) => Date.parse(b.timestamp) - Date.parse(a.timestamp));
 
     return {
@@ -972,57 +947,6 @@ export class GameEngine {
       total: ordered.length,
       limit,
       offset
-    };
-  }
-
-  async triggerSabotage(teamId: string, actionId: string, targetTeamId?: string) {
-    const team = this.teamsById.get(teamId);
-    if (!team) return { error: "Team not found." as const };
-
-    const action = this.sabotageCatalog.find((item) => item.id === actionId);
-    if (!action) return { error: "Sabotage action not found." as const };
-
-    const now = Date.now();
-    const cooldownUntil = team.sabotageCooldowns[action.id] ?? 0;
-    if (cooldownUntil > now) {
-      return { error: "Sabotage action is on cooldown." as const };
-    }
-    if (team.sabotageBalance < action.cost) {
-      return { error: "Insufficient sabotage balance." as const };
-    }
-
-    if (targetTeamId && !this.teamsById.has(targetTeamId)) {
-      return { error: "Target team not found." as const };
-    }
-
-    team.sabotageBalance -= action.cost;
-    team.sabotageCooldowns[action.id] = now + action.cooldownSeconds * 1000;
-
-    const purchase: SabotagePurchase = {
-      id: crypto.randomUUID(),
-      teamId,
-      actionId,
-      targetTeamId,
-      costDeducted: action.cost,
-      triggeredAt: new Date().toISOString()
-    };
-    this.sabotagePurchases.push(purchase);
-    this.auditLogs.push({
-      id: crypto.randomUUID(),
-      action: "SABOTAGE_TRIGGERED",
-      targetType: "TEAM",
-      targetId: targetTeamId ?? teamId,
-      metadata: { actionId, sourceTeamId: teamId, cost: action.cost },
-      createdAt: purchase.triggeredAt
-    });
-
-    await this.persist();
-
-    return {
-      purchase,
-      action,
-      sourceTeamId: teamId,
-      targetTeamId
     };
   }
 
@@ -1198,7 +1122,6 @@ export class GameEngine {
       state.status = "COMPLETED";
       state.pointsAwarded = clue.base_points;
       team.scoreTotal += clue.base_points;
-      team.sabotageBalance += Math.floor(clue.base_points * 0.2);
       team.completedCount += 1;
       submission.pointsAwarded = clue.base_points;
       this.advanceToNextClue(team);
@@ -1254,7 +1177,6 @@ export class GameEngine {
         state.status = "COMPLETED";
         state.pointsAwarded = awarded;
         team.scoreTotal += awarded;
-        team.sabotageBalance += Math.floor(awarded * 0.2);
         team.completedCount += 1;
         submission.pointsAwarded = awarded;
         this.advanceToNextClue(team);

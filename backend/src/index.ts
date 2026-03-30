@@ -16,8 +16,8 @@ const bootstrap = async () => {
     env.PERSISTENCE_MODE === "postgres"
       ? new PostgresStateStore(getPostgresPool(env.DATABASE_URL))
       : new MemoryStateStore();
-  const gameEngine = await GameEngine.create(seed, store);
-  const aiJudge = createAIJudgeProvider(env.AI_PROVIDER);
+  const gameEngine = await GameEngine.create(seed, store, env.SEED_VARIANT);
+  const aiJudge = createAIJudgeProvider(env.AI_PROVIDER, env.OPENAI_API_KEY, env.OPENAI_MODEL);
   const app = createApp(corsOrigins, gameEngine, aiJudge, {
     joinWindowMs: env.RATE_LIMIT_JOIN_WINDOW_MS,
     joinMax: env.RATE_LIMIT_JOIN_MAX,
@@ -26,9 +26,7 @@ const bootstrap = async () => {
     scanValidateWindowMs: env.RATE_LIMIT_SCAN_VALIDATE_WINDOW_MS,
     scanValidateMax: env.RATE_LIMIT_SCAN_VALIDATE_MAX,
     submitWindowMs: env.RATE_LIMIT_SUBMIT_WINDOW_MS,
-    submitMax: env.RATE_LIMIT_SUBMIT_MAX,
-    sabotageTriggerWindowMs: env.RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS,
-    sabotageTriggerMax: env.RATE_LIMIT_SABOTAGE_TRIGGER_MAX
+    submitMax: env.RATE_LIMIT_SUBMIT_MAX
   });
   const server = createServer(app);
 
@@ -40,6 +38,14 @@ const bootstrap = async () => {
       `[scavenge-backend] listening on port ${env.PORT} (${env.PERSISTENCE_MODE}) seed=${env.SEED_VARIANT} source=${loadedSeed.sourceFile}`
     );
   });
+
+  const shutdown = () => {
+    server.close(() => {
+      process.exit(0);
+    });
+  };
+  process.on("SIGTERM", shutdown);
+  process.on("SIGINT", shutdown);
 };
 
 bootstrap().catch((error) => {

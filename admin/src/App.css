@@ -76,6 +76,33 @@ button {
   align-items: center;
 }
 
+.review-text-answer,
+.review-photo,
+.review-ai-feedback {
+  grid-column: 1 / -1;
+  font-size: 0.85rem;
+}
+
+.review-text-answer {
+  padding: 0.4rem 0.5rem;
+  background: #f7fafc;
+  border-radius: 4px;
+  word-break: break-word;
+}
+
+.review-photo-img {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 6px;
+  display: block;
+  cursor: pointer;
+}
+
+.review-ai-feedback {
+  color: #718096;
+  font-style: italic;
+}
+
 .actions-row {
   display: flex;
   flex-wrap: wrap;
@@ -371,6 +398,16 @@ button {
   color: #64748b;
 }
 
+.admin-login-required {
+  margin: 0.75rem 0;
+  padding: 0.75rem 1rem;
+  background: #1e3a5f;
+  border: 1px solid #2d6a9f;
+  border-radius: 8px;
+  color: #93c5fd;
+  font-size: 0.9rem;
+}
+
 /* In-game screen */
 .game-screen {
   display: flex;
@@ -379,6 +416,18 @@ button {
   width: 100%;
   padding-bottom: 2rem;
 }
+
+.player-status-banner {
+  margin: 0.6rem 1rem 0;
+  padding: 0.55rem 0.8rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  color: #e2e8f0;
+}
+
 .player-header {
   display: flex;
   align-items: center;

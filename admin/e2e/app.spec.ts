@@ -1,7 +1,85 @@
 import { expect, test } from "@playwright/test";
+import type { APIRequestContext } from "@playwright/test";
 
 const captainPin = process.env.E2E_CAPTAIN_PIN ?? "910546";
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "changeme";
+const apiBase = process.env.E2E_API_BASE_URL ?? "http://localhost:3001/api";
+
+const idempotencyKey = (scope: string) => `${scope}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const loginAsAdminApi = async (request: APIRequestContext) => {
+  const response = await request.post(`${apiBase}/auth/admin/login`, {
+    data: { password: adminPassword }
+  });
+
+  expect(response.ok()).toBeTruthy();
+  const payload = await response.json() as { token: string };
+  expect(payload.token).toBeTruthy();
+  return payload.token;
+};
+
+const setupCaptainOnOptionalClue = async (
+  request: APIRequestContext,
+  teamId: string,
+  participantName: string
+) => {
+  const adminToken = await loginAsAdminApi(request);
+
+  const statusResponse = await request.post(`${apiBase}/game/status`, {
+    headers: {
+      "x-admin-token": adminToken,
+      "x-idempotency-key": idempotencyKey("e2e-game-status")
+    },
+    data: { status: "RUNNING" }
+  });
+  expect(statusResponse.ok()).toBeTruthy();
+
+  const assignResponse = await request.post(`${apiBase}/admin/team-assignments/assign`, {
+    headers: {
+      "x-admin-token": adminToken,
+      "x-idempotency-key": idempotencyKey("e2e-assign-player")
+    },
+    data: { teamId, participantName }
+  });
+  expect(assignResponse.ok()).toBeTruthy();
+
+  const captainResponse = await request.post(`${apiBase}/admin/team-assignments/captain`, {
+    headers: {
+      "x-admin-token": adminToken,
+      "x-idempotency-key": idempotencyKey("e2e-assign-captain")
+    },
+    data: {
+      teamId,
+      captainName: participantName,
+      captainPin,
+      forceOverride: true
+    }
+  });
+  expect(captainResponse.ok()).toBeTruthy();
+
+  const cluesResponse = await request.get(`${apiBase}/admin/clues`, {
+    headers: { "x-admin-token": adminToken }
+  });
+  expect(cluesResponse.ok()).toBeTruthy();
+  const cluesPayload = await cluesResponse.json() as {
+    clues: Array<{ index: number; required_flag: boolean }>;
+  };
+
+  const optionalClue = cluesPayload.clues.find((clue) => !clue.required_flag);
+  expect(optionalClue).toBeTruthy();
+
+  const reopenResponse = await request.post(`${apiBase}/admin/team/${teamId}/reopen-clue`, {
+    headers: {
+      "x-admin-token": adminToken,
+      "x-idempotency-key": idempotencyKey("e2e-reopen-optional")
+    },
+    data: {
+      clueIndex: optionalClue!.index,
+      reason: "E2E skip clue validation"
+    }
+  });
+  expect(reopenResponse.ok()).toBeTruthy();
+};
 
 const loginAsAdmin = async (page: import("@playwright/test").Page) => {
   await page.goto("/admin");
@@ -121,4 +199,57 @@ test("help screen dictator links open SMS composer", async ({ page }) => {
   expect(testHref).toContain("sms:4086054832");
   expect(testHref).toContain("SCAVENGE%20TEST");
   expect(testHref).toContain("Topic%3A%20Wrong%20clue%20is%20showing");
+});
+
+test("captain can skip an optional clue from the clue panel", async ({ page, request }) => {
+  const participantName = `E2E Skip Captain ${Date.now()}`;
+  const teamId = "spades";
+
+  await setupCaptainOnOptionalClue(request, teamId, participantName);
+
+  await page.goto("/");
+  await page.getByTestId("team-chip-spades").click();
+  await page.getByRole("button", { name: participantName }).click();
+  await page.getByTestId("captain-pin-input").fill(captainPin);
+  await page.getByTestId("join-submit-btn").click();
+
+  await expect(page.getByTestId("player-header")).toBeVisible();
+
+  const revealButton = page.getByRole("button", { name: /Reveal Clue/i });
+  await expect(revealButton).toBeVisible();
+  await revealButton.click();
+
+  const readProgress = async () => {
+    const rawText = (await page.locator(".progress-meta").textContent()) ?? "";
+    const text = rawText.replace(/\u00a0/g, " ");
+    const clueMatch = text.match(/Clue\s+(\d+)\s+of/i);
+    const skippedMatch = text.match(/(\d+)\s+skipped/i);
+    return {
+      clue: clueMatch ? Number(clueMatch[1]) : NaN,
+      skipped: skippedMatch ? Number(skippedMatch[1]) : NaN
+    };
+  };
+
+  const before = await readProgress();
+  expect(Number.isFinite(before.clue)).toBeTruthy();
+  expect(Number.isFinite(before.skipped)).toBeTruthy();
+
+  await page.getByRole("button", { name: "Skip this clue" }).click();
+
+  await expect.poll(async () => {
+    const current = await readProgress();
+    return current.clue;
+  }).toBe(before.clue + 1);
+
+  await expect.poll(async () => {
+    const current = await readProgress();
+    return current.skipped;
+  }).toBe(before.skipped + 1);
+
+  const revealNextButton = page.getByRole("button", { name: /Reveal Clue/i });
+  await expect(revealNextButton).toBeVisible();
+  await revealNextButton.click();
+
+  await expect(page.locator(".verdict-banner")).toHaveCount(0);
+  await expect(page.getByText("Correct! Great work — moving to the next clue.")).toHaveCount(0);
 });

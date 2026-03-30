@@ -53,6 +53,29 @@ const setup = async () => {
   return { seed, gameEngine, http, emissions: ioSpy.emissions };
 };
 
+const setupWithSeedOverride = async (override: (seed: ReturnType<typeof loadSeedConfig>) => void) => {
+  const seed = loadSeedConfig();
+  override(seed);
+  seed.game.status = "RUNNING";
+  const gameEngine = await GameEngine.create(seed, new MemoryStateStore());
+  const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"));
+  const ioSpy = createIoSpy();
+  app.set("io", ioSpy.io);
+  const http = request(app);
+  return { seed, gameEngine, http, emissions: ioSpy.emissions };
+};
+
+const setupWithVariant = async (variant: "test" | "production") => {
+  const seed = loadSeedConfig();
+  seed.game.status = "RUNNING";
+  const gameEngine = await GameEngine.create(seed, new MemoryStateStore(), variant);
+  const app = createApp(["*"], gameEngine, createAIJudgeProvider("mock"));
+  const ioSpy = createIoSpy();
+  app.set("io", ioSpy.io);
+  const http = request(app);
+  return { seed, gameEngine, http, emissions: ioSpy.emissions };
+};
+
 const setupWithRateLimits = async (authRateLimitConfig: AuthRateLimitConfig) => {
   const seed = loadSeedConfig();
   seed.game.status = "RUNNING";
@@ -152,6 +175,44 @@ test("member cannot submit clues", async () => {
   assert.match(submitResponse.body.error, /captains/i);
 });
 
+test("answer similarity requires >=90 percent and allows resubmission", async () => {
+  const { seed, http } = await setupWithSeedOverride((seedConfig) => {
+    if (seedConfig.clues[0]) {
+      seedConfig.clues[0] = {
+        ...seedConfig.clues[0],
+        requires_scan: false,
+        expected_answer: "Winchester Mystery House Winchester Repeating Arms"
+      };
+    }
+  });
+  const team = seed.teams[0];
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  const wrongAnswerResponse = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "san jose", mediaUrl: "data:image/png;base64,AAAA" });
+
+  assert.equal(wrongAnswerResponse.status, 200);
+  assert.equal(wrongAnswerResponse.body.verdict, "FAIL");
+  assert.match(JSON.stringify(wrongAnswerResponse.body.ai?.reasons ?? []), /90%|similar/i);
+
+  const unchangedState = await http
+    .get("/api/team/me/state")
+    .set("x-auth-token", captainToken);
+  assert.equal(unchangedState.status, 200);
+  assert.equal(unchangedState.body.currentClueIndex, 0);
+
+  const correctedAnswerResponse = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "Winchester Mystery House - Winchester Repeating Arms", mediaUrl: "data:image/png;base64,BBBB" });
+
+  assert.equal(correctedAnswerResponse.status, 200);
+  assert.equal(correctedAnswerResponse.body.verdict, "PASS");
+  assert.equal(correctedAnswerResponse.body.nextClueIndex, 1);
+});
+
 test("join endpoint accepts short suit team names", async () => {
   const { seed, http } = await setup();
   const team = seed.teams[0];
@@ -161,6 +222,57 @@ test("join endpoint accepts short suit team names", async () => {
 
   assert.equal(joinResponse.body.team.teamName, team.name);
   assert.equal(joinResponse.body.session.role, "MEMBER");
+});
+
+test("test variant: any participant joins as captain without a PIN", async () => {
+  const { seed, http } = await setupWithVariant("test");
+  const team = seed.teams[0];
+
+  const joinResponse = await joinAssignedParticipant(http, team.join_code, "Member Tester");
+
+  assert.equal(joinResponse.body.session.role, "CAPTAIN");
+});
+
+test("test variant: participant joins as captain and can submit without a PIN", async () => {
+  const { seed, http } = await setupWithVariant("test");
+  const team = seed.teams[0];
+
+  // Confirm captain can submit (captain-only action) without having supplied a PIN
+  const joinResponse = await joinAssignedParticipant(http, team.join_code, "No Pin Tester");
+  const captainToken = joinResponse.body.session.token as string;
+
+  await ensureScanIfRequired(http, captainToken);
+
+  const submitResponse = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "test mode proof" });
+
+  assert.equal(submitResponse.status, 200);
+});
+
+test("production variant: participant without PIN joins as member", async () => {
+  const { seed, http } = await setupWithVariant("production");
+  const team = seed.teams[0];
+
+  const joinResponse = await joinAssignedParticipant(http, team.join_code, "Member Tester");
+
+  assert.equal(joinResponse.body.session.role, "MEMBER");
+});
+
+test("production variant: wrong PIN is rejected", async () => {
+  const { seed, http } = await setupWithVariant("production");
+  const team = seed.teams[0];
+
+  await assignParticipant(http, team.join_code, "Bad Pin Tester");
+  const joinResponse = await http.post("/api/auth/join").send({
+    joinCode: team.join_code,
+    displayName: "Bad Pin Tester",
+    captainPin: "000000"
+  });
+
+  assert.equal(joinResponse.status, 401);
+  assert.match(joinResponse.body.error, /captain pin/i);
 });
 
 test("join endpoint rejects unassigned participants", async () => {
@@ -516,9 +628,7 @@ test("join endpoint enforces rate limits", async () => {
     scanValidateWindowMs: 60_000,
     scanValidateMax: 20,
     submitWindowMs: 60_000,
-    submitMax: 20,
-    sabotageTriggerWindowMs: 60_000,
-    sabotageTriggerMax: 20
+    submitMax: 20
   });
   const team = seed.teams[0];
 
@@ -555,9 +665,7 @@ test("admin login endpoint enforces rate limits", async () => {
     scanValidateWindowMs: 60_000,
     scanValidateMax: 20,
     submitWindowMs: 60_000,
-    submitMax: 20,
-    sabotageTriggerWindowMs: 60_000,
-    sabotageTriggerMax: 20
+    submitMax: 20
   });
 
   const firstLogin = await http.post("/api/auth/admin/login").send({ password: adminPassword });
@@ -580,9 +688,7 @@ test("scan validate endpoint enforces rate limits", async () => {
     scanValidateWindowMs: 60_000,
     scanValidateMax: 2,
     submitWindowMs: 60_000,
-    submitMax: 20,
-    sabotageTriggerWindowMs: 60_000,
-    sabotageTriggerMax: 20
+    submitMax: 20
   });
   const team = seed.teams[0];
   const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
@@ -628,9 +734,7 @@ test("submit endpoint enforces rate limits", async () => {
     scanValidateWindowMs: 60_000,
     scanValidateMax: 20,
     submitWindowMs: 60_000,
-    submitMax: 1,
-    sabotageTriggerWindowMs: 60_000,
-    sabotageTriggerMax: 20
+    submitMax: 1
   });
   const team = seed.teams[0];
   const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
@@ -656,50 +760,6 @@ test("submit endpoint enforces rate limits", async () => {
     .send({ textContent: "rate limit attempt three" });
   assert.equal(blockedSubmit.status, 429);
   assert.match(blockedSubmit.body.error, /too many submissions/i);
-});
-
-test("sabotage trigger endpoint enforces rate limits", async () => {
-  const { seed, http } = await setupWithRateLimits({
-    joinWindowMs: 60_000,
-    joinMax: 10,
-    adminLoginWindowMs: 60_000,
-    adminLoginMax: 10,
-    scanValidateWindowMs: 60_000,
-    scanValidateMax: 20,
-    submitWindowMs: 60_000,
-    submitMax: 20,
-    sabotageTriggerWindowMs: 60_000,
-    sabotageTriggerMax: 1
-  });
-  const team = seed.teams[0];
-  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
-
-  const catalogResponse = await http.get("/api/sabotage/catalog");
-  assert.equal(catalogResponse.status, 200);
-  const actionId = catalogResponse.body.items[0]?.id as string | undefined;
-  assert.ok(actionId);
-
-  const triggerBody = { actionId };
-
-  const firstTrigger = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send(triggerBody);
-  assert.equal(firstTrigger.status, 200);
-
-  const secondTrigger = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send(triggerBody);
-  assert.equal(secondTrigger.status, 429);
-  assert.match(secondTrigger.body.error, /too many sabotage attempts/i);
-
-  const blockedTrigger = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send(triggerBody);
-  assert.equal(blockedTrigger.status, 429);
-  assert.match(blockedTrigger.body.error, /too many sabotage attempts/i);
 });
 
 test("captain cannot pass a required clue", async () => {
@@ -796,32 +856,6 @@ test("needs-review submission appears in queue and can be resolved", async () =>
   const testedTeam = leaderboardResponse.body.teams.find((entry: { teamId: string }) => entry.teamId === team.name.toLowerCase());
   assert.ok(testedTeam);
   assert.ok(testedTeam.scoreTotal > 0);
-});
-
-test("sabotage cooldown is enforced per action", async () => {
-  const { seed, http } = await setup();
-  const team = seed.teams[0];
-  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
-
-  const catalogResponse = await http.get("/api/sabotage/catalog");
-  assert.equal(catalogResponse.status, 200);
-  const actionId = catalogResponse.body.items[0]?.id as string | undefined;
-  assert.ok(actionId);
-
-  const firstTrigger = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send({ actionId });
-
-  assert.equal(firstTrigger.status, 200);
-
-  const secondTrigger = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send({ actionId });
-
-  assert.equal(secondTrigger.status, 400);
-  assert.match(secondTrigger.body.error, /cooldown/i);
 });
 
 test("admin deduction updates leaderboard and writes audit log", async () => {
@@ -935,27 +969,6 @@ test("admin clue reopen emits team-scoped realtime event", async () => {
   assert.ok(reopenEvent);
 });
 
-test("sabotage trigger emits global realtime event", async () => {
-  const { seed, http, emissions } = await setup();
-  const team = seed.teams[0];
-  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
-
-  const catalogResponse = await http.get("/api/sabotage/catalog");
-  assert.equal(catalogResponse.status, 200);
-  const actionId = catalogResponse.body.items[0]?.id as string | undefined;
-  assert.ok(actionId);
-
-  const triggerResponse = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send({ actionId });
-
-  assert.equal(triggerResponse.status, 200);
-
-  const sabotageEvent = emissions.find((entry) => entry.scope === "all" && entry.event === "sabotage:triggered");
-  assert.ok(sabotageEvent);
-});
-
 test("admin game status change emits global realtime event", async () => {
   const { http, emissions } = await setup();
   const adminToken = await loginAsAdmin(http);
@@ -973,21 +986,10 @@ test("admin game status change emits global realtime event", async () => {
   assert.ok(statusEvent);
 });
 
-test("team event feed returns recent security and sabotage entries", async () => {
+test("team event feed returns recent security entries", async () => {
   const { seed, http } = await setup();
   const team = seed.teams[0];
   const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
-
-  const catalogResponse = await http.get("/api/sabotage/catalog");
-  assert.equal(catalogResponse.status, 200);
-  const actionId = catalogResponse.body.items[0]?.id as string | undefined;
-  assert.ok(actionId);
-
-  const sabotageResponse = await http
-    .post("/api/team/me/sabotage/trigger")
-    .set("x-auth-token", captainToken)
-    .send({ actionId });
-  assert.equal(sabotageResponse.status, 200);
 
   const securityResponse = await http
     .post("/api/team/me/security-events")
@@ -1002,9 +1004,7 @@ test("team event feed returns recent security and sabotage entries", async () =>
   assert.ok(Array.isArray(feedResponse.body.items));
 
   const hasSecurity = feedResponse.body.items.some((entry: { type: string }) => entry.type === "SECURITY");
-  const hasSabotage = feedResponse.body.items.some((entry: { type: string }) => entry.type === "SABOTAGE");
   assert.equal(hasSecurity, true);
-  assert.equal(hasSabotage, true);
 });
 
 test("team submissions endpoint returns recent verdict history", async () => {
