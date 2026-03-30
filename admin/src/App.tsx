@@ -160,7 +160,7 @@ function App() {
   const [submitPreviewUrl, setSubmitPreviewUrl] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [countdown, setCountdown] = useState("");
-  const [socketConnected, setSocketConnected] = useState(true);
+  const [socketConnected, setSocketConnected] = useState(false);
   const [adminClueUploadSource, setAdminClueUploadSource] = useState<AdminClueSource>("production");
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
@@ -578,6 +578,14 @@ function App() {
     const effectiveToken = tokenOverride ?? authToken;
     if (!effectiveToken) return;
     const response = await fetch(`${apiBase}/team/me/state`, { headers: getPlayerHeaders(effectiveToken) });
+    if (response.status === 401) {
+      setAuthToken("");
+      setRole(null);
+      setTeamId("");
+      setTeamState(null);
+      setStatusMessage("Your session expired — please rejoin the hunt.");
+      return;
+    }
     const payload = await response.json();
     if (!response.ok) {
       setStatusMessage(payload.error || "Unable to fetch team state");
@@ -614,6 +622,17 @@ function App() {
         } catch {
           payload = {};
         }
+      }
+
+      if (response.status === 401) {
+        setAuthToken("");
+        setRole(null);
+        setTeamId("");
+        setTeamState(null);
+        const msg = "Your session expired — please rejoin the hunt.";
+        setStatusMessage(msg);
+        addToast("error", msg);
+        return;
       }
 
       if (!response.ok) {
@@ -674,6 +693,14 @@ function App() {
       method: "POST",
       headers
     });
+    if (response.status === 401) {
+      setAuthToken("");
+      setRole(null);
+      setTeamId("");
+      setTeamState(null);
+      setStatusMessage("Your session expired — please rejoin the hunt.");
+      return;
+    }
     const payload = await response.json();
     if (!response.ok) {
       setStatusMessage(payload.error || "Pass failed");
@@ -1148,6 +1175,12 @@ function App() {
   useEffect(() => {
     if (mode !== "admin" || !adminToken || adminView !== "setup") return;
     void fetchTeamAssignments();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminToken, adminView, mode]);
+
+  useEffect(() => {
+    if (mode !== "admin" || !adminToken || adminView !== "live-ops") return;
+    void loadAdminDashboard();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, adminView, mode]);
 
