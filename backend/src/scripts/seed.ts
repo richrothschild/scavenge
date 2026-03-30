@@ -15,8 +15,6 @@ const run = async () => {
   try {
     await client.query("BEGIN");
 
-    await client.query("DELETE FROM sabotage_purchases");
-    await client.query("DELETE FROM sabotage_actions");
     await client.query("DELETE FROM submissions");
     await client.query("DELETE FROM team_clue_states");
     await client.query("DELETE FROM clues");
@@ -62,9 +60,9 @@ const run = async () => {
       await client.query(
         `INSERT INTO teams (
           id, game_id, name, join_code, captain_name, captain_pin_hash,
-          score_total, sabotage_balance, current_clue_index, completed_count,
+          score_total, current_clue_index, completed_count,
           skipped_count, eligibility_status
-        ) VALUES ($1,$2,$3,$4,$5,$6,0,0,0,0,0,'INELIGIBLE')`,
+        ) VALUES ($1,$2,$3,$4,$5,$6,0,0,0,0,'INELIGIBLE')`,
         [teamId, gameId, team.name, team.join_code, team.captain_name, team.captain_pin]
       );
 
@@ -77,22 +75,6 @@ const run = async () => {
           [crypto.randomUUID(), teamId, clueId, clue.order_index === 1 ? "ACTIVE" : "LOCKED"]
         );
       }
-    }
-
-    for (const action of (seed as any).sabotage_catalog ?? []) {
-      await client.query(
-        `INSERT INTO sabotage_actions (id, name, description, cost, cooldown_seconds, effect_type, effect_value)
-         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-        [
-          crypto.randomUUID(),
-          action.name,
-          action.description,
-          action.cost,
-          action.cooldown_seconds,
-          action.effect_type,
-          String(action.effect_duration_seconds ?? "")
-        ]
-      );
     }
 
     await client.query("COMMIT");

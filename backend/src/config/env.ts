@@ -26,9 +26,7 @@ const EnvSchema = z.object({
   RATE_LIMIT_SCAN_VALIDATE_WINDOW_MS: z.coerce.number().int().positive().default(60000),
   RATE_LIMIT_SCAN_VALIDATE_MAX: z.coerce.number().int().positive().default(20),
   RATE_LIMIT_SUBMIT_WINDOW_MS: z.coerce.number().int().positive().default(300000),
-  RATE_LIMIT_SUBMIT_MAX: z.coerce.number().int().positive().default(10),
-  RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS: z.coerce.number().int().positive().default(300000),
-  RATE_LIMIT_SABOTAGE_TRIGGER_MAX: z.coerce.number().int().positive().default(6)
+  RATE_LIMIT_SUBMIT_MAX: z.coerce.number().int().positive().default(10)
 });
 
 export const env = EnvSchema.parse(process.env);

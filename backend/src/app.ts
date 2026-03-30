@@ -1,5 +1,6 @@
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import { GameEngine } from "./services/gameEngine";
 import { AIJudgeProvider } from "./services/aiJudge";
 import { gameRouter } from "./routes/game";
@@ -14,8 +15,6 @@ export type AuthRateLimitConfig = {
   scanValidateMax: number;
   submitWindowMs: number;
   submitMax: number;
-  sabotageTriggerWindowMs: number;
-  sabotageTriggerMax: number;
 };
 
 type RateLimitRule = {
@@ -90,15 +89,6 @@ const createAuthRateLimiter = (config: AuthRateLimitConfig): express.RequestHand
       max: config.submitMax,
       message: "Too many submissions. Please wait before retrying.",
       keyStrategy: "auth-token-or-ip"
-    },
-    {
-      key: "sabotage-trigger",
-      method: "POST",
-      path: "/team/me/sabotage/trigger",
-      windowMs: config.sabotageTriggerWindowMs,
-      max: config.sabotageTriggerMax,
-      message: "Too many sabotage attempts. Please wait before retrying.",
-      keyStrategy: "auth-token-or-ip"
     }
   ];
 
@@ -147,9 +137,7 @@ const defaultAuthRateLimitConfig: AuthRateLimitConfig = {
   scanValidateWindowMs: 60 * 1000,
   scanValidateMax: 20,
   submitWindowMs: 5 * 60 * 1000,
-  submitMax: 10,
-  sabotageTriggerWindowMs: 5 * 60 * 1000,
-  sabotageTriggerMax: 6
+  submitMax: 10
 };
 
 export const createApp = (
@@ -160,12 +148,25 @@ export const createApp = (
 ) => {
   const app = express();
   app.set("trust proxy", 1);
+  app.use(helmet());
   app.use(cors({ origin: corsOrigins, credentials: true }));
   app.use("/api", createAuthRateLimiter(authRateLimitConfig));
   app.use(express.json({ limit: "15mb" }));
 
   app.use("/api", healthRouter);
   app.use("/api", gameRouter(gameEngine, aiJudge));
+
+  // Global error handler — catches JSON parse errors and any next(err) calls
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const status = (err as { status?: number; statusCode?: number }).status
+      ?? (err as { status?: number; statusCode?: number }).statusCode
+      ?? 500;
+    const message = err instanceof Error ? err.message : "Internal server error";
+    if (status >= 500) {
+      console.error("[error]", err);
+    }
+    res.status(status).json({ error: message });
+  });
 
   return app;
 };

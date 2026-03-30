@@ -279,10 +279,6 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.json(items);
   });
 
-  router.get("/sabotage/catalog", (_req, res) => {
-    return res.json({ items: gameEngine.getSabotageCatalog() });
-  });
-
   router.post("/team/me/scan-session", (req, res) => {
     const authToken = getAuthToken(req.headers as Record<string, unknown>);
     const session = gameEngine.getSession(authToken);
@@ -353,7 +349,9 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       clueRubric: clue.ai_rubric,
       submissionType: clue.submission_type,
       textContent: req.body?.textContent,
-      mediaUrl: req.body?.mediaUrl
+      mediaUrl: req.body?.mediaUrl,
+      expectedAnswer: clue.expected_answer,
+      similarityThreshold: 0.9
     });
 
     const result = await gameEngine.submitCurrentClue(session.teamId, {
@@ -409,36 +407,6 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     });
 
     return res.status(200).json({ ...result, teamState: state });
-  });
-
-  router.post("/team/me/sabotage/trigger", async (req, res) => {
-    const authToken = getAuthToken(req.headers as Record<string, unknown>);
-    const session = gameEngine.getSession(authToken);
-    if (!session) {
-      return res.status(401).json({ error: "Auth token required." });
-    }
-    if (session.role !== "CAPTAIN") {
-      return res.status(403).json({ error: "Only captains may trigger sabotage." });
-    }
-
-    if (!enforceMutationPolicy(res, gameEngine, "PLAYER_GAMEPLAY_MUTATION", "sabotage-trigger")) {
-      return;
-    }
-
-    const actionId = typeof req.body?.actionId === "string" ? req.body.actionId : "";
-    const targetTeamId = typeof req.body?.targetTeamId === "string" ? req.body.targetTeamId : undefined;
-    if (!actionId) {
-      return res.status(400).json({ error: "actionId is required." });
-    }
-
-    const result = await gameEngine.triggerSabotage(session.teamId, actionId, targetTeamId);
-    if ("error" in result) {
-      return res.status(400).json(result);
-    }
-
-    const io = req.app.get("io") as Server | undefined;
-    io?.emit("sabotage:triggered", result);
-    return res.status(200).json(result);
   });
 
   router.post("/team/me/security-events", async (req, res) => {
