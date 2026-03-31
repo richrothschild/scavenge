@@ -1,6 +1,6 @@
 param(
   [string]$BaseUrl       = "http://localhost:3001/api",
-  [string]$AdminPassword = $(if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "changeme" })
+  [string]$AdminPassword = $(if ($env:ADMIN_PASSWORD) { $env:ADMIN_PASSWORD } else { "changeme" })  # DevSkim: ignore DS104456 — CI env var, not stored credential
 )
 
 Set-StrictMode -Version Latest
@@ -195,15 +195,19 @@ if ($r.Ok -and $r.Body.teams) {
 }
 
 $firstClue = $null
+$allClues   = @()
+$lastClue   = $null
 $isTestVariant = $false
 $r = Invoke-Api -Method GET -Path "/admin/clues" -Headers $adminHeaders
 if ($r.Ok -and $r.Body.clues) {
-  $clueCount = @($r.Body.clues).Count
-  $firstClue = $r.Body.clues[0]
+  $allClues  = @($r.Body.clues)
+  $clueCount = $allClues.Count
+  $firstClue = $allClues[0]
+  $lastClue  = $allClues[$clueCount - 1]
   # Test variant has <=6 clues; production has 12+. Use clue count to detect mode.
   $isTestVariant = $clueCount -le 6
   $variantLabel = if ($isTestVariant) { "TEST" } else { "PRODUCTION" }
-  Write-Pass "GET /admin/clues $clueCount clues variant=$variantLabel first='$($firstClue.title)' qr=$($firstClue.qr_public_id)"
+  Write-Pass "GET /admin/clues $clueCount clues variant=$variantLabel first='$($firstClue.title)' last='$($lastClue.title)' qr=$($firstClue.qr_public_id)"
 } else {
   Write-Fail "GET /admin/clues" "status=$($r.StatusCode)"
 }
@@ -423,7 +427,8 @@ if ($scanSessionToken -and $firstClue) {
   if ($r.Ok) {
     Write-Pass "POST /team/me/scan-validate clue=$($r.Body.clueIndex) validated"
   } else {
-    Write-Skip "POST /team/me/scan-validate" "status=$($r.StatusCode) body=$($r.Body.error) non-critical"
+    $scanErrDetail = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+    Write-Skip "POST /team/me/scan-validate" "status=$($r.StatusCode) body=$scanErrDetail non-critical"
   }
 } else {
   Write-Skip "POST /team/me/scan-validate" "no scan session token available"
@@ -455,7 +460,8 @@ if ($r.Ok) {
   $pts       = $r.Body.pointsAwarded
   Write-Pass "POST /team/me/submit captain clue=$preClueIndex verdict=$verdict ai=$aiVerdict pts=$pts"
 } else {
-  Write-Fail "POST /team/me/submit captain" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /team/me/submit captain" "status=$($r.StatusCode) body=$errMsg"
 }
 
 $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
@@ -481,7 +487,8 @@ $r = Invoke-Api -Method POST -Path "/team/me/pass" -Headers $captainHeaders
 if ($r.Ok) {
   Write-Pass "POST /team/me/pass captain clue=$prePassIndex -> OK"
 } else {
-  Write-Fail "POST /team/me/pass" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /team/me/pass" "status=$($r.StatusCode) body=$errMsg"
 }
 
 $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
@@ -506,7 +513,8 @@ $r = Invoke-Api -Method POST -Path "/team/me/security-events" -Headers $memberHe
 if ($r.Ok) {
   Write-Pass "POST /team/me/security-events event recorded id=$($r.Body.id)"
 } else {
-  Write-Fail "POST /team/me/security-events" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /team/me/security-events" "status=$($r.StatusCode) body=$errMsg"
 }
 
 # ============================================================
@@ -562,7 +570,8 @@ $r = Invoke-Api -Method POST -Path "/admin/team/spades/deduct" `
 if ($r.Ok) {
   Write-Pass "POST /admin/team/spades/deduct 25pts new score=$($r.Body.scoreTotal) was $spadesScore"
 } else {
-  Write-Fail "POST /admin/team/spades/deduct" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /admin/team/spades/deduct" "status=$($r.StatusCode) body=$errMsg"
 }
 
 $ah = $adminHeaders + @{ "x-idempotency-key" = (New-Idem "deduct-no-reason") }
@@ -587,7 +596,8 @@ $r = Invoke-Api -Method POST -Path "/admin/team/hearts/award" `
 if ($r.Ok) {
   Write-Pass "POST /admin/team/hearts/award 15pts new score=$($r.Body.scoreTotal) was $heartsScore"
 } else {
-  Write-Fail "POST /admin/team/hearts/award" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /admin/team/hearts/award" "status=$($r.StatusCode) body=$errMsg"
 }
 
 # ============================================================
@@ -602,7 +612,8 @@ $r = Invoke-Api -Method POST -Path "/admin/team/spades/hint" -Headers $adminHead
 if ($r.Ok) {
   Write-Pass "POST /admin/team/spades/hint clue=$currentClueIdx hint delivered"
 } else {
-  Write-Fail "POST /admin/team/spades/hint" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /admin/team/spades/hint" "status=$($r.StatusCode) body=$errMsg"
 }
 
 # ============================================================
@@ -614,7 +625,8 @@ $r = Invoke-Api -Method POST -Path "/admin/broadcast" -Headers $adminHeaders `
 if ($r.Ok -and $r.Body.message) {
   Write-Pass "POST /admin/broadcast sent at $($r.Body.sentAt)"
 } else {
-  Write-Fail "POST /admin/broadcast" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /admin/broadcast" "status=$($r.StatusCode) body=$errMsg"
 }
 
 $r = Invoke-Api -Method POST -Path "/admin/broadcast" -Headers $adminHeaders -Body @{ message = "" }
@@ -638,7 +650,8 @@ $r = Invoke-Api -Method POST -Path "/admin/team/spades/reopen-clue" `
 if ($r.Ok) {
   Write-Pass "POST /admin/team/spades/reopen-clue index=0 openUntil=$($r.Body.openedByAdminUntil)"
 } else {
-  Write-Fail "POST /admin/team/spades/reopen-clue" "status=$($r.StatusCode) body=$($r.Body.error)"
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Fail "POST /admin/team/spades/reopen-clue" "status=$($r.StatusCode) body=$errMsg"
 }
 
 # ============================================================
@@ -669,6 +682,78 @@ if ($r.Ok) {
   Write-Pass "GET /team/me/submissions captain $sCount submissions"
 } else {
   Write-Fail "GET /team/me/submissions captain" "status=$($r.StatusCode)"
+}
+
+# ============================================================
+Write-Phase "PHASE 17b -- Last Clue Progression (Winchester / End-of-Hunt guard)"
+# ============================================================
+
+# Advance SPADES to the final clue by passing all intermediate clues, then
+# submit a correct answer and confirm the team does NOT loop or get stuck.
+if ($isTestVariant -and $lastClue) {
+  # Pass clues until we reach the last one
+  $advanceLimit = 10  # safety cap to prevent infinite loop
+  $advanceCount = 0
+  do {
+    $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
+    $curIdx  = $r.Body.currentClueIndex
+    $lastIdx = $clueCount - 1
+    if ($curIdx -ge $lastIdx) { break }
+    $r = Invoke-Api -Method POST -Path "/team/me/pass" -Headers $captainHeaders
+    if (-not $r.Ok) {
+      $passErr = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+      Write-Fail "Advance to last clue (pass at index $curIdx)" "status=$($r.StatusCode) body=$passErr"
+      break
+    }
+    $advanceCount++
+  } while ($advanceCount -lt $advanceLimit)
+
+  $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
+  $atLastClue = $r.Body.currentClueIndex -eq ($clueCount - 1)
+
+  if ($atLastClue) {
+    Write-Pass "SPADES advanced to last clue (index=$($r.Body.currentClueIndex) title='$($lastClue.title)')"
+  } else {
+    Write-Fail "Advance to last clue" "expected index $($clueCount - 1), got $($r.Body.currentClueIndex) after $advanceCount passes"
+  }
+
+  # Submit a correct answer for the last clue
+  $lastClueAnswer = if ($lastClue.PSObject.Properties['answer']) { $lastClue.answer } else { "Winchester Mystery House" }
+  $r = Invoke-Api -Method POST -Path "/team/me/submit" -Headers $captainHeaders `
+       -Body @{ textContent = $lastClueAnswer }
+  if ($r.Ok) {
+    Write-Pass "Last clue submit verdict=$($r.Body.verdict) pts=$($r.Body.pointsAwarded)"
+  } else {
+    $submitErr = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+    Write-Fail "Last clue submit" "status=$($r.StatusCode) body=$submitErr"
+  }
+
+  # Confirm team state after last clue: should NOT loop back to 0, should stay at last index
+  # or show completedCount increased. No stuck/loop behavior.
+  $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
+  $afterIdx       = $r.Body.currentClueIndex
+  $completedCount = $r.Body.completedCount
+  $skippedCount   = $r.Body.skippedCount
+
+  if ($afterIdx -eq 0 -and $completedCount -eq 0) {
+    Write-Fail "Last clue post-submit state" "index reset to 0 with completedCount=0 — possible loop"
+  } elseif ($afterIdx -lt ($clueCount - 1) -and $completedCount -lt 1) {
+    Write-Fail "Last clue post-submit state" "index=$afterIdx completed=$completedCount — unexpected regression"
+  } else {
+    Write-Pass "Post-last-clue state: index=$afterIdx completed=$completedCount skipped=$skippedCount (no loop)"
+  }
+
+  # Confirm a second submit on the same (last) clue is either blocked or handled gracefully
+  $r2 = Invoke-Api -Method POST -Path "/team/me/submit" -Headers $captainHeaders `
+        -Body @{ textContent = $lastClueAnswer }
+  if ($r2.Ok -or $r2.StatusCode -eq 400 -or $r2.StatusCode -eq 409 -or $r2.StatusCode -eq 423) {
+    Write-Pass "Double-submit on last clue handled gracefully (status=$($r2.StatusCode))"
+  } else {
+    Write-Fail "Double-submit on last clue" "unexpected status=$($r2.StatusCode)"
+  }
+
+} else {
+  Write-Skip "Last clue progression" "not in test variant or no last clue available"
 }
 
 # ============================================================
