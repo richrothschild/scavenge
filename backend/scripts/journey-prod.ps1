@@ -106,7 +106,6 @@ try {
   $teamState = Invoke-RestMethod -Method Get -Uri "$normalizedBaseUrl/team/me/state" -Headers $playerHeaders
   $eventFeed = Invoke-RestMethod -Method Get -Uri "$normalizedBaseUrl/team/me/event-feed?limit=5&offset=0" -Headers $playerHeaders
   $submissions = Invoke-RestMethod -Method Get -Uri "$normalizedBaseUrl/team/me/submissions?limit=5&offset=0" -Headers $playerHeaders
-  $sabotageCatalog = Invoke-RestMethod -Method Get -Uri "$normalizedBaseUrl/sabotage/catalog"
 
   $leaderboardCount = if ($null -ne $leaderboard.teams) { @($leaderboard.teams).Count } else { 0 }
   $reviewCount = if ($null -ne $reviewQueue.items) { @($reviewQueue.items).Count } else { 0 }
@@ -115,7 +114,6 @@ try {
   $teamAssignmentCount = if ($null -ne $teamAssignments.teams) { @($teamAssignments.teams).Count } else { 0 }
   $eventFeedCount = if ($null -ne $eventFeed.items) { @($eventFeed.items).Count } else { 0 }
   $submissionCount = if ($null -ne $submissions.items) { @($submissions.items).Count } else { 0 }
-  $sabotageCount = if ($null -ne $sabotageCatalog.items) { @($sabotageCatalog.items).Count } else { 0 }
 
   $result = [PSCustomObject]@{
     WebStatusCode = $webResponse.StatusCode
@@ -133,7 +131,6 @@ try {
     PlayerStateClueIndex = $teamState.currentClueIndex
     PlayerEventFeedItems = $eventFeedCount
     PlayerSubmissionItems = $submissionCount
-    SabotageCatalogItems = $sabotageCount
     CheckedAtUtc = [DateTime]::UtcNow.ToString("o")
   }
 
