@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { Component, useEffect, useMemo, useRef, useState } from "react";
+import type { FormEvent, ReactNode } from "react";
 import { io } from "socket.io-client";
 import { derivePaginationState, parseLimitInput, parseOffsetInput } from "./utils/pagination";
 import "./App.css";
@@ -102,6 +102,65 @@ type SeedResetResponse = {
   requiresRestart: boolean;
 };
 
+// ── FIX 6: React Error Boundary ──────────────────────────────────────────────
+type EBState = { hasError: boolean; error: string };
+class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: "" };
+  }
+  static getDerivedStateFromError(error: unknown): EBState {
+    return { hasError: true, error: error instanceof Error ? error.message : String(error) };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:"100vh", padding:"2rem", textAlign:"center", background:"#0f172a", color:"#f8fafc" }}>
+          <div style={{ fontSize:"3rem", marginBottom:"1rem" }}>⚠️</div>
+          <h2 style={{ margin:"0 0 0.5rem" }}>Something went wrong</h2>
+          <p style={{ color:"rgba(255,255,255,0.6)", marginBottom:"1.5rem", fontSize:"0.9rem" }}>{this.state.error}</p>
+          <button
+            onClick={() => { this.setState({ hasError: false, error: "" }); window.location.reload(); }}
+            style={{ background:"#1d4ed8", color:"#fff", border:"none", borderRadius:"8px", padding:"0.6rem 1.4rem", fontSize:"1rem", cursor:"pointer" }}
+          >
+            Reload app
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+// ── FIX 1: fetch() with timeout helper ───────────────────────────────────────
+const fetchWithTimeout = (url: string, options: RequestInit = {}, ms = 20000): Promise<Response> => {
+  const controller = new AbortController();
+  const id = window.setTimeout(() => controller.abort(), ms);
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => window.clearTimeout(id));
+};
+
+// ── FIX 7: Client-side image compression ─────────────────────────────────────
+const compressImage = (file: File, maxDimension = 1280, quality = 0.82): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const { width, height } = img;
+      const scale = Math.min(1, maxDimension / Math.max(width, height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(width * scale);
+      canvas.height = Math.round(height * scale);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) { reject(new Error("Canvas not available")); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL("image/jpeg", quality));
+    };
+    img.onerror = () => { URL.revokeObjectURL(objectUrl); reject(new Error("Image load failed")); };
+    img.src = objectUrl;
+  });
+};
+
 function App() {
   const isAdminPath = window.location.pathname.startsWith("/admin");
   const [mode] = useState<"player" | "admin">(isAdminPath ? "admin" : "player");
@@ -178,11 +237,37 @@ function App() {
   // ── Welcome screen ────────────────────────────────────────────
   const [showWelcome, setShowWelcome] = useState(false);
   // ── Clue reveal gate (shows tap-to-reveal on each new clue) ──
-  const [revealedClueIndex, setRevealedClueIndex] = useState<number | null>(null);
+  const [revealedClueIndexState, setRevealedClueIndexState] = useState<number | null>(null);
   // ── Toast notifications ───────────────────────────────────────
   const [toasts, setToasts] = useState<Array<{ id: string; type: "success" | "error" | "info"; msg: string }>>([]);
   // ── Clue elapsed timer ────────────────────────────────────────
   const [clueElapsed, setClueElapsed] = useState("");
+  // ── FIX 5: Skip confirmation ──────────────────────────────────
+  const [skipConfirmPending, setSkipConfirmPending] = useState(false);
+  // ── FIX 7: Upload progress text ──────────────────────────────
+  const [uploadProgress, setUploadProgress] = useState<string>("");
+  // ── FIX 8: Member join warning confirmation ───────────────────
+  const [memberJoinConfirmed, setMemberJoinConfirmed] = useState(false);
+
+  // ── FIX 3: revealedClueIndex backed by localStorage ──────────
+  useEffect(() => {
+    if (!teamId) return;
+    const saved = localStorage.getItem(`scavenge_revealed_${teamId}`);
+    if (saved !== null) setRevealedClueIndexState(Number(saved));
+  }, [teamId]);
+
+  const setRevealedClueIndex = (index: number | null) => {
+    setRevealedClueIndexState(index);
+    if (teamId) {
+      if (index === null) {
+        localStorage.removeItem(`scavenge_revealed_${teamId}`);
+      } else {
+        localStorage.setItem(`scavenge_revealed_${teamId}`, String(index));
+      }
+    }
+  };
+
+  const revealedClueIndex = revealedClueIndexState;
 
   const headers = useMemo(
     () => ({ "Content-Type": "application/json", "x-auth-token": authToken }),
@@ -340,10 +425,10 @@ function App() {
     if ("vibrate" in navigator) navigator.vibrate(pattern);
   };
 
-  const addToast = (type: "success" | "error" | "info", msg: string) => {
+  const addToast = (type: "success" | "error" | "info", msg: string, durationMs = 3500) => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts(prev => [...prev, { id, type, msg }]);
-    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), durationMs);
   };
 
   const getTeamTheme = () => {
@@ -410,21 +495,33 @@ function App() {
 
   const joinTeam = async (event: FormEvent) => {
     event.preventDefault();
+    // FIX 8: Warn when joining without PIN
+    const trimmedPin = captainPin.trim();
+    if (!trimmedPin && !memberJoinConfirmed) {
+      setMemberJoinConfirmed(true);
+      setStatusMessage("No captain PIN entered — you'll join as a member and won't be able to submit answers. Tap Join Hunt again to confirm.");
+      return;
+    }
     const endpoint = `${apiBase}/auth/join`;
     let response: Response;
 
     try {
-      response = await fetch(endpoint, {
+      // FIX 1: use fetchWithTimeout
+      response = await fetchWithTimeout(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           joinCode: normalizeTeamCodeInput(joinCode),
           displayName: displayName.trim(),
-          captainPin: captainPin.trim() ? captainPin : undefined
+          captainPin: trimmedPin ? captainPin : undefined
         })
       });
     } catch (error) {
-      setStatusMessage(formatNetworkError("Join", endpoint, error));
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatusMessage("Request timed out — check your connection and try again.");
+      } else {
+        setStatusMessage(formatNetworkError("Join", endpoint, error));
+      }
       return;
     }
 
@@ -440,6 +537,12 @@ function App() {
     setLastVerdict(null);
     setLastFeedback("");
     setShowWelcome(true);
+    // FIX 2: Persist session in sessionStorage
+    sessionStorage.setItem("scavenge_session", JSON.stringify({
+      token: payload.session.token,
+      role: payload.session.role,
+      teamId: payload.session.teamId
+    }));
     void fetchGameStatus();
     await refreshTeamState(payload.session.token);
     setStatusMessage(`Joined as ${payload.session.role}`);
@@ -449,9 +552,13 @@ function App() {
     const endpoint = `${apiBase}/join/options`;
     let response: Response;
     try {
-      response = await fetch(endpoint);
+      response = await fetchWithTimeout(endpoint);
     } catch (error) {
-      setStatusMessage(formatNetworkError("Join options fetch", endpoint, error));
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatusMessage("Request timed out — check your connection and try again.");
+      } else {
+        setStatusMessage(formatNetworkError("Join options fetch", endpoint, error));
+      }
       return;
     }
 
@@ -577,12 +684,22 @@ function App() {
   const refreshTeamState = async (tokenOverride?: string) => {
     const effectiveToken = tokenOverride ?? authToken;
     if (!effectiveToken) return;
-    const response = await fetch(`${apiBase}/team/me/state`, { headers: getPlayerHeaders(effectiveToken) });
+    let response: Response;
+    try {
+      response = await fetchWithTimeout(`${apiBase}/team/me/state`, { headers: getPlayerHeaders(effectiveToken) });
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatusMessage("Request timed out — check your connection and try again.");
+      }
+      return;
+    }
     if (response.status === 401) {
       setAuthToken("");
       setRole(null);
       setTeamId("");
       setTeamState(null);
+      // FIX 2: also clear sessionStorage on 401
+      sessionStorage.removeItem("scavenge_session");
       setStatusMessage("Your session expired — please rejoin the hunt.");
       return;
     }
@@ -592,6 +709,10 @@ function App() {
       return;
     }
     setTeamState(payload);
+    // FIX 9: Restore pending hint from server state
+    if (payload.pendingHint && typeof payload.pendingHint === 'object') {
+      setAdminHint(payload.pendingHint as { clueIndex: number; hintText: string });
+    }
   };
 
   const submitClue = async () => {
@@ -600,19 +721,36 @@ function App() {
     try {
       let mediaData: string | undefined;
       if (submitFile) {
-        mediaData = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(submitFile);
-        });
+        if (submitFile.type.startsWith("image/")) {
+          // FIX 7 + FIX 11: compress image with progress indicator
+          setUploadProgress("Compressing photo…");
+          mediaData = await compressImage(submitFile);
+        } else {
+          mediaData = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(submitFile);
+          });
+        }
       }
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({ textContent: submitText, mediaUrl: mediaData })
-      });
+      // FIX 11: show uploading state
+      setUploadProgress("Uploading…");
+      // FIX 1: use fetchWithTimeout
+      let response: Response;
+      try {
+        response = await fetchWithTimeout(endpoint, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ textContent: submitText, mediaUrl: mediaData })
+        });
+      } catch (fetchError) {
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          throw new Error("Request timed out — check your connection and try again.");
+        }
+        throw fetchError;
+      }
 
       const rawBody = await response.text();
       let payload: any = {};
@@ -658,12 +796,13 @@ function App() {
       const reasons = Array.isArray(payload?.ai?.reasons) ? payload.ai.reasons.join("; ") : "";
       setLastFeedback(verdict === "PASS" ? "" : (reasons || `Submission verdict: ${verdict}`));
       setStatusMessage(`Submission verdict: ${verdict}`);
-      // Verdict reveal + haptic + toast
+      // Verdict reveal + haptic + toast (FIX 10: longer duration for FAIL/NEEDS_REVIEW)
       setVerdictReveal(verdict === "PASS" ? null : verdict);
       haptic(verdict === "PASS" ? [100, 50, 150] : verdict === "FAIL" ? [200] : [50]);
       addToast(
         verdict === "PASS" ? "success" : verdict === "FAIL" ? "error" : "info",
-        verdict === "PASS" ? "Correct! Moving to next clue." : verdict === "FAIL" ? "Not quite — check the feedback." : "Submitted for admin review."
+        verdict === "PASS" ? "Correct! Moving to next clue." : verdict === "FAIL" ? "Not quite — check the feedback." : "Submitted for admin review.",
+        verdict === "PASS" ? 3500 : 8000
       );
       if (verdict !== "PASS") {
         setTimeout(() => setVerdictReveal(null), 2500);
@@ -680,11 +819,12 @@ function App() {
       }
       await refreshTeamState();
     } catch (error) {
-      const message = formatNetworkError("Submit", endpoint, error);
+      const message = error instanceof Error ? error.message : formatNetworkError("Submit", endpoint, error);
       setStatusMessage(message);
-      addToast("error", "Submit failed. Check connection and try again.");
+      addToast("error", message);
     } finally {
       setIsSubmitting(false);
+      setUploadProgress("");
     }
   };
 
@@ -693,7 +833,20 @@ function App() {
     const endpoint = `${apiBase}/team/me/pass`;
     setIsSubmitting(true);
     try {
-      const response = await fetch(endpoint, { method: "POST", headers });
+      let response: Response;
+      try {
+        response = await fetchWithTimeout(endpoint, { method: "POST", headers });
+      } catch (fetchError) {
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          setStatusMessage("Request timed out — check your connection and try again.");
+          addToast("error", "Request timed out — check your connection and try again.");
+        } else {
+          const message = formatNetworkError("Skip", endpoint, fetchError);
+          setStatusMessage(message);
+          addToast("error", "Skip failed. Check connection and try again.");
+        }
+        return;
+      }
 
       if (response.status === 401) {
         setAuthToken("");
@@ -848,9 +1001,13 @@ function App() {
     const endpoint = `${apiBase}/game/status`;
     let response: Response;
     try {
-      response = await fetch(endpoint);
+      response = await fetchWithTimeout(endpoint);
     } catch (error) {
-      setStatusMessage(formatNetworkError("Game status fetch", endpoint, error));
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatusMessage("Request timed out — check your connection and try again.");
+      } else {
+        setStatusMessage(formatNetworkError("Game status fetch", endpoint, error));
+      }
       return;
     }
 
@@ -981,9 +1138,13 @@ function App() {
     const endpoint = `${apiBase}/leaderboard`;
     let response: Response;
     try {
-      response = await fetch(endpoint);
+      response = await fetchWithTimeout(endpoint);
     } catch (error) {
-      setStatusMessage(formatNetworkError("Leaderboard fetch", endpoint, error));
+      if (error instanceof Error && error.name === "AbortError") {
+        setStatusMessage("Request timed out — check your connection and try again.");
+      } else {
+        setStatusMessage(formatNetworkError("Leaderboard fetch", endpoint, error));
+      }
       return;
     }
 
@@ -1181,6 +1342,23 @@ function App() {
     void fetchJoinOptions();
     void fetchGameStatus();
     void fetchLeaderboard();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
+
+  // ── FIX 2: Restore player session from sessionStorage on mount ─
+  useEffect(() => {
+    if (mode !== "player") return;
+    const saved = sessionStorage.getItem("scavenge_session");
+    if (!saved) return;
+    try {
+      const { token, role: savedRole, teamId: savedTeamId } = JSON.parse(saved) as { token?: string; role?: string; teamId?: string };
+      if (token && savedRole && savedTeamId) {
+        setAuthToken(token);
+        setRole(savedRole as Role);
+        setTeamId(savedTeamId);
+        void refreshTeamState(token);
+      }
+    } catch { /* corrupted */ }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -1409,6 +1587,10 @@ function App() {
   };
 
   const leaveHunt = () => {
+    // FIX 2: clear sessionStorage
+    sessionStorage.removeItem("scavenge_session");
+    // FIX 3: clear localStorage revealed clue
+    if (teamId) localStorage.removeItem(`scavenge_revealed_${teamId}`);
     setAuthToken("");
     setRole(null);
     setTeamId("");
@@ -1424,10 +1606,13 @@ function App() {
     setVerdictReveal(null);
     setAdminHint(null);
     setBroadcastMsg(null);
+    // FIX 5: clear skip confirm pending
+    setSkipConfirmPending(false);
     setStatusMessage("Ready");
   };
 
   return (
+    <ErrorBoundary>
     <div className={mode === "player" ? "" : "container"}>
       {mode === "admin" && <h1>SCAVENGE Admin</h1>}
       {mode === "admin" && <p className="status">Status: {statusMessage}</p>}
@@ -1463,6 +1648,7 @@ function App() {
                       onClick={() => {
                         setJoinCode(team);
                         setDisplayName("");
+                        setMemberJoinConfirmed(false);
                       }}
                     >
                       <span className="team-chip__suit">{TEAM_THEMES[team].suit}</span>
@@ -1479,7 +1665,7 @@ function App() {
                         key={participantName}
                         type="button"
                         className={`name-chip${displayName === participantName ? " name-chip--active" : ""}`}
-                        onClick={() => setDisplayName(participantName)}
+                        onClick={() => { setDisplayName(participantName); setMemberJoinConfirmed(false); }}
                       >
                         {participantName}
                       </button>
@@ -1497,14 +1683,14 @@ function App() {
                   type="password"
                   inputMode="numeric"
                   value={captainPin}
-                  onChange={(e) => setCaptainPin(e.target.value)}
+                  onChange={(e) => { setCaptainPin(e.target.value); setMemberJoinConfirmed(false); }}
                   placeholder="6-digit PIN"
                 />
                 <button data-testid="join-submit-btn" className="join-btn" type="submit" disabled={!displayName}>Join Hunt →</button>
               </form>
 
               {statusMessage && statusMessage !== "Ready" && (
-                <p data-testid="join-status-message" className="join-error">{statusMessage}</p>
+                <p data-testid="join-status-message" className={memberJoinConfirmed ? "join-warning" : "join-error"}>{statusMessage}</p>
               )}
             </div>
           ) : (
@@ -1536,17 +1722,17 @@ function App() {
                 <div className="progress-bar">
                   <div
                     className="progress-fill"
-                    style={{ width: `${Math.min(100, ((teamState?.completedCount ?? 0) / 14) * 100)}%` }}
+                    style={{ width: `${Math.min(100, ((teamState?.completedCount ?? 0) / (teamState?.clueCount ?? 14)) * 100)}%` }}
                   />
                 </div>
                 <div className="progress-meta">
-                  Clue {(teamState?.currentClueIndex ?? 0) + 1} of 14
+                  Clue {(teamState?.currentClueIndex ?? 0) + 1} of {teamState?.clueCount ?? 14}
                   &nbsp;·&nbsp; {teamState?.completedCount ?? 0} solved
                   &nbsp;·&nbsp; {teamState?.skippedCount ?? 0} skipped
                   {clueElapsed && <>&nbsp;·&nbsp; ⏱ {clueElapsed}</>}
                   &nbsp;·&nbsp;
-                  <span className={(teamState?.completedCount ?? 0) >= 9 ? "eligible" : "ineligible"}>
-                    {(teamState?.completedCount ?? 0) >= 9 ? "✅ Eligible" : "⚠️ Need 9 to qualify"}
+                  <span className={(teamState?.completedCount ?? 0) >= (teamState?.minCluesForEligibility ?? 9) ? "eligible" : "ineligible"}>
+                    {(teamState?.completedCount ?? 0) >= (teamState?.minCluesForEligibility ?? 9) ? "✅ Eligible" : `⚠️ Need ${teamState?.minCluesForEligibility ?? 9} to qualify`}
                   </span>
                 </div>
               </div>
@@ -1663,9 +1849,10 @@ function App() {
                             </div>
                           )}
 
-                          {/* Verdict */}
+                          {/* Verdict (FIX 10: dismiss button) */}
                           {lastVerdict && (
                             <div className={`verdict-banner verdict--${lastVerdict === "NEEDS_REVIEW" ? "needs-review" : lastVerdict.toLowerCase()}`}>
+                              <button className="verdict-dismiss" onClick={() => { setLastVerdict(null); setLastFeedback(""); }}>✕</button>
                               {lastVerdict === "FAIL" && "❌ Not quite — check the feedback below and try again."}
                               {lastVerdict === "NEEDS_REVIEW" && "⏳ Submitted for admin review. Stand by!"}
                               {lastFeedback && <p className="verdict-feedback">{lastFeedback}</p>}
@@ -1717,6 +1904,25 @@ function App() {
                               {submitPreviewUrl && (
                                 <img src={submitPreviewUrl} alt="Preview" className="photo-preview" />
                               )}
+                              {/* FIX 5: Skip confirmation dialog */}
+                              {skipConfirmPending && (
+                                <div className="skip-confirm-overlay">
+                                  <div className="skip-confirm-dialog">
+                                    <p className="skip-confirm-title">Skip this clue?</p>
+                                    <p className="skip-confirm-body">
+                                      This uses 1 of your {5 - (teamState?.skippedCount ?? 0)} remaining passes. You cannot undo a skip.
+                                    </p>
+                                    <div className="skip-confirm-actions">
+                                      <button className="btn-skip-yes" onClick={() => { setSkipConfirmPending(false); void passClue(); }}>
+                                        Yes, skip it
+                                      </button>
+                                      <button className="btn-skip-cancel" onClick={() => setSkipConfirmPending(false)}>
+                                        Cancel
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
                               <div className="submit-actions">
                                 <button
                                   className="btn-submit"
@@ -1727,16 +1933,22 @@ function App() {
                                     (teamState.currentClue.submission_type === "PHOTO" && !submitFile)
                                   }
                                 >
-                                  {isSubmitting ? "Submitting…" : "Submit Answer ✓"}
+                                  {isSubmitting ? (uploadProgress || "Submitting…") : "Submit Answer ✓"}
                                 </button>
                                 {!teamState.currentClue.required_flag && (
                                   <button
                                     className="btn-pass"
-                                    onClick={() => { void passClue(); }}
+                                    onClick={() => setSkipConfirmPending(true)}
                                     disabled={isSubmitting || (teamState.skippedCount ?? 0) >= 5}
                                   >Skip this clue</button>
                                 )}
                               </div>
+                              {/* FIX 11: Upload progress bar */}
+                              {isSubmitting && (
+                                <div className="upload-progress-bar">
+                                  <div className="upload-progress-fill" />
+                                </div>
+                              )}
                               <div className="passes-counter">
                                 {teamState.skippedCount ?? 0} of 5 skips used
                                 {(teamState.skippedCount ?? 0) >= 5 && <span className="passes-exhausted"> · No passes remaining</span>}
@@ -2419,6 +2631,7 @@ function App() {
         </section>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 

@@ -430,6 +430,7 @@ export class GameEngine {
   private readonly auditLogs: AuditLog[];
   private readonly clueQrOverrides: Record<number, string>;
   private gameStatus: GameStatus;
+  private readonly pendingHints = new Map<string, { clueIndex: number; hintText: string }>();
 
   private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot, private readonly variant: SeedConfigVariant = "production") {
     this.clues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
@@ -701,7 +702,10 @@ export class GameEngine {
       skippedCount: team.skippedCount,
       clueStates: team.clueStates,
       eligibilityStatus,
-      currentClue: currentClue ? toPublicClue(currentClue) : null
+      currentClue: currentClue ? toPublicClue(currentClue) : null,
+      clueCount: this.clues.length,
+      minCluesForEligibility: MIN_COMPLETED_FOR_ELIGIBILITY,
+      pendingHint: this.pendingHints.get(teamId) ?? null
     };
   }
 
@@ -1036,6 +1040,7 @@ export class GameEngine {
     });
 
     await this.persist();
+    this.pendingHints.set(teamId, { clueIndex, hintText });
     return { teamId, clueIndex, hintText };
   }
 
@@ -1076,6 +1081,7 @@ export class GameEngine {
     this.submissions.splice(0);
     this.reviewQueue.splice(0);
     this.securityEvents.splice(0);
+    this.pendingHints.clear();
 
     this.auditLogs.push({
       id: crypto.randomUUID(),
