@@ -1565,6 +1565,51 @@ function App() {
     await Promise.all([fetchAuditLogs(), fetchLeaderboard()]);
   };
 
+  const resetAllTeamsToClue1 = async () => {
+    if (!window.confirm("Reset ALL teams to Clue 1? This cannot be undone.")) return;
+    const results: string[] = [];
+    for (const team of leaderboard) {
+      const response = await fetch(`${apiBase}/admin/team/${team.teamId}/reopen-clue`, {
+        method: "POST",
+        headers: buildAdminMutationHeaders(`reset-clue1-${team.teamId}`),
+        body: JSON.stringify({ clueIndex: 0, reason: "Admin reset all teams to Clue 1" })
+      });
+      results.push(response.ok ? `${team.teamId} ✓` : `${team.teamId} ✗`);
+    }
+    setStatusMessage(`Reset to Clue 1: ${results.join(", ")}`);
+    await Promise.all([fetchLeaderboard(), fetchAuditLogs()]);
+  };
+
+  const moveTeamToPrevClue = async (teamId: string, currentClueIndex: number) => {
+    const targetIndex = Math.max(0, currentClueIndex - 1);
+    const response = await fetch(`${apiBase}/admin/team/${teamId}/reopen-clue`, {
+      method: "POST",
+      headers: buildAdminMutationHeaders(`prev-clue-${teamId}`),
+      body: JSON.stringify({ clueIndex: targetIndex, reason: "Admin moved team back one clue" })
+    });
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Move back failed"));
+      return;
+    }
+    setStatusMessage(`${teamId} moved to clue ${targetIndex + 1}`);
+    await Promise.all([fetchLeaderboard(), fetchAuditLogs()]);
+  };
+
+  const skipTeamCurrentClue = async (teamId: string, currentClueIndex: number) => {
+    const targetIndex = currentClueIndex + 1;
+    const response = await fetch(`${apiBase}/admin/team/${teamId}/reopen-clue`, {
+      method: "POST",
+      headers: buildAdminMutationHeaders(`skip-clue-${teamId}`),
+      body: JSON.stringify({ clueIndex: targetIndex, reason: "Admin skipped team forward one clue" })
+    });
+    if (!response.ok) {
+      setStatusMessage(await parseError(response, "Skip forward failed"));
+      return;
+    }
+    setStatusMessage(`${teamId} advanced to clue ${targetIndex + 1}`);
+    await Promise.all([fetchLeaderboard(), fetchAuditLogs()]);
+  };
+
   const loadTeamContext = (selectedTeamId: string, currentClueIndex: number) => {
     setDeductTeamId(selectedTeamId);
     setDeductReason("Admin adjustment");
@@ -2450,6 +2495,15 @@ function App() {
               <button onClick={() => updateGameStatus("PAUSED")}>Pause</button>
               <button onClick={() => updateGameStatus("ENDED")}>End</button>
             </div>
+            <div className="actions-row" style={{ marginTop: "0.5rem" }}>
+              <button
+                className="btn-danger"
+                onClick={() => { void resetAllTeamsToClue1(); }}
+                disabled={leaderboard.length === 0}
+              >
+                ⏮ Reset ALL teams to Clue 1
+              </button>
+            </div>
           </div>
 
           <h3>Review Queue</h3>
@@ -2568,26 +2622,38 @@ function App() {
           <h3>Leaderboard Snapshot</h3>
           <ul className="list">
             {leaderboard.map((item) => (
-              <li key={item.teamId}>
-                <span>
-                  {item.teamName} ({item.teamId}) / {item.scoreTotal} pts / clue {item.currentClueIndex + 1}
-                </span>
-                <button
-                  onClick={() => {
-                    loadTeamContext(item.teamId, item.currentClueIndex);
-                  }}
-                >
-                  Load Team Context
-                </button>
-                <button
-                  onClick={() => {
-                    setReopenTeamId(item.teamId);
-                    setReopenClueIndex(String(Math.max(0, item.currentClueIndex - 1)));
-                    setStatusMessage(`Prepared reopen form for ${item.teamId}`);
-                  }}
-                >
-                  Prepare Reopen
-                </button>
+              <li key={item.teamId} style={{ gridTemplateColumns: "1fr" }}>
+                <div style={{ fontWeight: 700, color: "#f1f5f9" }}>
+                  {item.teamName} &nbsp;·&nbsp; {item.scoreTotal} pts &nbsp;·&nbsp; Clue {item.currentClueIndex + 1}
+                </div>
+                <div className="actions-row" style={{ marginTop: "0.4rem" }}>
+                  <button onClick={() => loadTeamContext(item.teamId, item.currentClueIndex)}>
+                    Load Context
+                  </button>
+                  <button
+                    title="Move this team back one clue"
+                    disabled={item.currentClueIndex === 0}
+                    onClick={() => { void moveTeamToPrevClue(item.teamId, item.currentClueIndex); }}
+                  >
+                    ◀ Prev Clue
+                  </button>
+                  <button
+                    title="Skip this team forward one clue"
+                    onClick={() => { void skipTeamCurrentClue(item.teamId, item.currentClueIndex); }}
+                  >
+                    Skip Clue ▶
+                  </button>
+                  <button
+                    title="Reopen current clue (sets it back to ACTIVE)"
+                    onClick={() => {
+                      setReopenTeamId(item.teamId);
+                      setReopenClueIndex(String(item.currentClueIndex));
+                      setStatusMessage(`Reopen form loaded for ${item.teamId} clue ${item.currentClueIndex + 1}`);
+                    }}
+                  >
+                    Reopen Clue
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
