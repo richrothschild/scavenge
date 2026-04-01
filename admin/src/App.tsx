@@ -689,35 +689,53 @@ function App() {
   };
 
   const passClue = async () => {
-    const response = await fetch(`${apiBase}/team/me/pass`, {
-      method: "POST",
-      headers
-    });
-    if (response.status === 401) {
-      setAuthToken("");
-      setRole(null);
-      setTeamId("");
-      setTeamState(null);
-      setStatusMessage("Your session expired — please rejoin the hunt.");
-      return;
-    }
-    const payload = await response.json();
-    if (!response.ok) {
-      setStatusMessage(payload.error || "Pass failed");
-      return;
-    }
+    if (isSubmitting) return;
+    const endpoint = `${apiBase}/team/me/pass`;
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(endpoint, { method: "POST", headers });
 
-    setLastVerdict(null);
-    setLastFeedback("");
-    setStatusMessage("Clue passed");
-    setRevealedClueIndex(null);
+      if (response.status === 401) {
+        setAuthToken("");
+        setRole(null);
+        setTeamId("");
+        setTeamState(null);
+        const msg = "Your session expired — please rejoin the hunt.";
+        setStatusMessage(msg);
+        addToast("error", msg);
+        return;
+      }
 
-    if (payload.teamState) {
-      setTeamState(payload.teamState);
-      return;
+      let payload: any = {};
+      try { payload = await response.json(); } catch { /* empty body */ }
+
+      if (!response.ok) {
+        const msg = typeof payload?.error === "string" && payload.error.trim()
+          ? payload.error
+          : "Skip failed — try again.";
+        setStatusMessage(msg);
+        addToast("error", msg);
+        return;
+      }
+
+      setLastVerdict(null);
+      setLastFeedback("");
+      setStatusMessage("Clue skipped");
+      setRevealedClueIndex(null);
+
+      if (payload.teamState) {
+        setTeamState(payload.teamState);
+        return;
+      }
+
+      await refreshTeamState();
+    } catch (error) {
+      const message = formatNetworkError("Skip", endpoint, error);
+      setStatusMessage(message);
+      addToast("error", "Skip failed. Check connection and try again.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    await refreshTeamState();
   };
 
   const uploadAdminCluesFile = async (event: FormEvent) => {
@@ -1390,6 +1408,25 @@ function App() {
     setStatusMessage("Cleared team context fields");
   };
 
+  const leaveHunt = () => {
+    setAuthToken("");
+    setRole(null);
+    setTeamId("");
+    setTeamState(null);
+    setLastVerdict(null);
+    setLastFeedback("");
+    setRevealedClueIndex(null);
+    setSubmitText("");
+    if (submitPreviewUrl) URL.revokeObjectURL(submitPreviewUrl);
+    setSubmitFile(null);
+    setSubmitPreviewUrl(null);
+    setIsSubmitting(false);
+    setVerdictReveal(null);
+    setAdminHint(null);
+    setBroadcastMsg(null);
+    setStatusMessage("Ready");
+  };
+
   return (
     <div className={mode === "player" ? "" : "container"}>
       {mode === "admin" && <h1>SCAVENGE Admin</h1>}
@@ -1484,6 +1521,7 @@ function App() {
 
               {/* Header */}
               <header data-testid="player-header" className="player-header">
+                <button className="btn-leave-hunt" onClick={leaveHunt} title="Return to home screen">← Home</button>
                 <div className="player-header__team">
                   {(() => { const th = getTeamTheme(); return th ? `${th.suit} ${th.fullName}` : `Team ${(teamState?.teamName ?? teamId).toUpperCase()}`; })()}
                   {role === "CAPTAIN" && <span className="captain-badge">👑 Captain</span>}
@@ -1542,6 +1580,25 @@ function App() {
                       <h2 className="waiting-title">Hunt is paused</h2>
                       <p className="waiting-body">Stand by — the Dictator will resume shortly.</p>
                       <button className="btn-refresh" onClick={() => { void fetchGameStatus(); }}>🔄 Check status</button>
+                    </div>
+                  ) : gameStatus?.status === "ENDED" ? (
+                    <div className="waiting-room waiting-room--ended">
+                      <div className="waiting-icon">🏁</div>
+                      <h2 className="waiting-title">Hunt over!</h2>
+                      <p className="waiting-body">The hunt has ended. Check the standings to see your final result.</p>
+                      <button className="btn-refresh" onClick={() => { setPlayerTab("leaderboard"); void fetchLeaderboard(); }}>🏆 Final Standings</button>
+                    </div>
+                  ) : (() => {
+                    const currentClueState = teamState?.clueStates?.[teamState?.currentClueIndex];
+                    const isCurrentClueFinished = currentClueState?.status === "COMPLETED" || currentClueState?.status === "PASSED";
+                    return isCurrentClueFinished;
+                  })() ? (
+                    <div className="waiting-room waiting-room--complete">
+                      <div className="waiting-icon">🎉</div>
+                      <h2 className="waiting-title">All clues done!</h2>
+                      <p className="waiting-body">You've completed all your clues — great work! Head to the final checkpoint and check the standings.</p>
+                      <button className="btn-refresh" onClick={() => { setPlayerTab("leaderboard"); void fetchLeaderboard(); }}>🏆 View Standings</button>
+                      <button className="btn-refresh" style={{ marginTop: "0.5rem" }} onClick={() => { void refreshTeamState(); void fetchGameStatus(); }}>🔄 Refresh</button>
                     </div>
                   ) : teamState?.currentClue ? (
                     <>
@@ -1708,6 +1765,7 @@ function App() {
               {playerTab === "leaderboard" && (
                 <div className="leaderboard-panel">
                   <div className="lb-heading">Live Standings</div>
+                  <button className="btn-leave-hunt btn-leave-hunt--secondary" onClick={leaveHunt}>← Home</button>
                   {leaderboard.length === 0 ? (
                     <p className="lb-empty">Loading standings…</p>
                   ) : (

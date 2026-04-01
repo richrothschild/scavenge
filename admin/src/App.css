@@ -459,6 +459,22 @@ button {
   font-weight: 800;
   color: #F2552C;
 }
+.btn-leave-hunt {
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.55);
+  border-radius: 6px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-leave-hunt:hover { color: #f8fafc; border-color: rgba(255,255,255,0.4); }
+.btn-leave-hunt--secondary {
+  display: block;
+  margin: 0 0 0.75rem 0;
+}
 
 /* Progress */
 .progress-track { padding: 0.6rem 1rem 0.25rem; }
@@ -1078,6 +1094,14 @@ button {
 .waiting-room--paused {
   border-color: rgba(251,191,36,0.35);
   background: rgba(251,191,36,0.06);
+}
+.waiting-room--ended {
+  border-color: rgba(148,163,184,0.35);
+  background: rgba(148,163,184,0.06);
+}
+.waiting-room--complete {
+  border-color: rgba(34,197,94,0.35);
+  background: rgba(34,197,94,0.06);
 }
 .waiting-icon {
   font-size: 3.5rem;
