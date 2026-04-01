@@ -244,6 +244,28 @@ if ($r.StatusCode -eq 401) {
 }
 
 # ============================================================
+Write-Phase "PHASE 1b -- Reset to Test Seed (clean state)"
+# ============================================================
+
+$rh = $adminHeaders + @{ "x-idempotency-key" = (New-Idem "reset-seed") }
+$r = Invoke-Api -Method POST -Path "/admin/reset-seed" -Headers $rh -Body @{ variant = "test" }
+if ($r.Ok) {
+  Write-Pass "POST /admin/reset-seed variant=test -- clean state"
+  # Re-read clue list after reset (seed may have changed order)
+  $r2 = Invoke-Api -Method GET -Path "/admin/clues" -Headers $adminHeaders
+  if ($r2.Ok -and $r2.Body.clues) {
+    $allClues  = @($r2.Body.clues)
+    $clueCount = $allClues.Count
+    $firstClue = $allClues[0]
+    $lastClue  = $allClues[$clueCount - 1]
+    $isTestVariant = $clueCount -le 6
+  }
+} else {
+  $errMsg = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
+  Write-Skip "POST /admin/reset-seed" "status=$($r.StatusCode) error=$errMsg -- continuing with current state"
+}
+
+# ============================================================
 Write-Phase "PHASE 2 -- Administrator Assign Participants"
 # ============================================================
 
