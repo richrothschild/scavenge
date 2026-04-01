@@ -31,7 +31,8 @@ const serializeClues = (clues: SeedConfig["clues"]) => {
       requires_scan: clue.requires_scan,
       submission_type: clue.submission_type,
       base_points: clue.base_points,
-      qr_public_id: clue.qr_public_id
+      qr_public_id: clue.qr_public_id,
+      answer: clue.expected_answer ?? null
     }));
 };
 
@@ -350,8 +351,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       submissionType: clue.submission_type,
       textContent: req.body?.textContent,
       mediaUrl: req.body?.mediaUrl,
-      expectedAnswer: clue.expected_answer,
-      similarityThreshold: 0.9
+      expectedAnswer: clue.expected_answer
     });
 
     const result = await gameEngine.submitCurrentClue(session.teamId, {

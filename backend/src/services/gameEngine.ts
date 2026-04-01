@@ -834,6 +834,7 @@ export class GameEngine {
       submission_type: clue.submission_type,
       base_points: clue.base_points,
       qr_public_id: clue.qr_public_id,
+      answer: clue.expected_answer ?? null
     }));
   }
 
@@ -1050,6 +1051,32 @@ export class GameEngine {
     }
 
     await this.store.save(freshSnapshot);
+
+    // Update in-memory state to match the fresh snapshot so mutations work immediately
+    // without requiring a server restart.
+    this.gameStatus = freshSnapshot.gameStatus;
+
+    this.teamsById.clear();
+    this.teamByJoinCode.clear();
+    for (const team of freshSnapshot.teams) {
+      this.teamsById.set(team.teamId, team);
+      const fullJoinCode = team.joinCode.toUpperCase();
+      this.teamByJoinCode.set(fullJoinCode, team);
+      const shortJoinCode = fullJoinCode.includes("-") ? fullJoinCode.split("-")[0] : fullJoinCode;
+      if (shortJoinCode && !this.teamByJoinCode.has(shortJoinCode)) {
+        this.teamByJoinCode.set(shortJoinCode, team);
+      }
+    }
+
+    // Invalidate all player sessions (team state changed underneath them)
+    this.participantSessionsByToken.clear();
+    this.scanSessionsByToken.clear();
+
+    // Reset transient runtime collections
+    this.submissions.splice(0);
+    this.reviewQueue.splice(0);
+    this.securityEvents.splice(0);
+
     this.auditLogs.push({
       id: crypto.randomUUID(),
       action: "SEED_RESET",
@@ -1059,7 +1086,7 @@ export class GameEngine {
       metadata: { variant, resolvedSource: loaded.resolvedSource, clueCount: loaded.seed.clues.length },
       createdAt: new Date().toISOString()
     });
-    return { variant, resolvedSource: loaded.resolvedSource, clueCount: loaded.seed.clues.length, requiresRestart: true };
+    return { variant, resolvedSource: loaded.resolvedSource, clueCount: loaded.seed.clues.length, requiresRestart: false };
   }
 
   async reopenTeamClue(teamId: string, clueIndex: number, reason: string, durationSeconds?: number) {
