@@ -175,7 +175,7 @@ test("admin can refresh leaderboard", async ({ page }) => {
   await page.getByRole("button", { name: "Load Leaderboard" }).click();
 
   await expect(page.getByText("Leaderboard Snapshot")).toBeVisible();
-  await expect(page.getByText("SPADES", { exact: false })).toBeVisible();
+  await expect(page.locator("ul.list span", { hasText: "SPADES" }).first()).toBeVisible();
 });
 
 test("help screen dictator links open SMS composer", async ({ page }) => {

@@ -691,7 +691,7 @@ Write-Phase "PHASE 17b -- Last Clue Progression (Winchester / End-of-Hunt guard)
 # Advance SPADES to the final clue by passing all intermediate clues, then
 # submit a correct answer and confirm the team does NOT loop or get stuck.
 if ($isTestVariant -and $lastClue) {
-  # Pass clues until we reach the last one
+  # Advance to the last clue by submitting correct answers (avoids skip budget dependency)
   $advanceLimit = 10  # safety cap to prevent infinite loop
   $advanceCount = 0
   do {
@@ -699,13 +699,19 @@ if ($isTestVariant -and $lastClue) {
     $curIdx  = $r.Body.currentClueIndex
     $lastIdx = $clueCount - 1
     if ($curIdx -ge $lastIdx) { break }
-    $r = Invoke-Api -Method POST -Path "/team/me/pass" -Headers $captainHeaders
-    if (-not $r.Ok) {
-      $passErr = if ($r.Body -and $r.Body.PSObject.Properties['error']) { $r.Body.error } else { $r.RawBody }
-      Write-Fail "Advance to last clue (pass at index $curIdx)" "status=$($r.StatusCode) body=$passErr"
+    # Use the expected answer for the current clue if available, else generic text
+    $curClue    = $allClues[$curIdx]
+    $submitText = if ($curClue -and $curClue.PSObject.Properties['answer']) { $curClue.answer } else { "synthetic advance submission" }
+    $r = Invoke-Api -Method POST -Path "/team/me/submit" -Headers $captainHeaders -Body @{ textContent = $submitText }
+    if ($r.Ok -and ($r.Body.verdict -eq "PASS" -or $r.Body.verdict -eq "NEEDS_REVIEW")) {
+      $advanceCount++
+    } elseif ($r.Ok -and $r.Body.verdict -eq "FAIL") {
+      # Try pass as fallback if submit doesn't advance
+      $rp = Invoke-Api -Method POST -Path "/team/me/pass" -Headers $captainHeaders
+      if ($rp.Ok) { $advanceCount++ } else { break }
+    } else {
       break
     }
-    $advanceCount++
   } while ($advanceCount -lt $advanceLimit)
 
   $r = Invoke-Api -Method GET -Path "/team/me/state" -Headers $captainHeaders
@@ -714,7 +720,7 @@ if ($isTestVariant -and $lastClue) {
   if ($atLastClue) {
     Write-Pass "SPADES advanced to last clue (index=$($r.Body.currentClueIndex) title='$($lastClue.title)')"
   } else {
-    Write-Fail "Advance to last clue" "expected index $($clueCount - 1), got $($r.Body.currentClueIndex) after $advanceCount passes"
+    Write-Fail "Advance to last clue" "expected index $($clueCount - 1), got $($r.Body.currentClueIndex) after $advanceCount advances"
   }
 
   # Submit a correct answer for the last clue
