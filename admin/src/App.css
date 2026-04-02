@@ -1854,3 +1854,90 @@ button:disabled {
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
 }
+
+/* ── Bulk Import Panel ──────────────────────────────────────── */
+.bulk-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.bulk-hint {
+  color: #94a3b8;
+  font-size: 0.82rem;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-template {
+  background: #1e3a5f;
+  border: 1px solid #2563eb;
+  color: #93c5fd;
+  border-radius: 5px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+.btn-template:hover { background: #1d4ed8; color: #fff; }
+
+.bulk-textarea {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 0.6rem 0.75rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  resize: vertical;
+  width: 100%;
+  box-sizing: border-box;
+  line-height: 1.5;
+}
+.bulk-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+
+.bulk-actions {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.bulk-file-label {
+  display: inline-block;
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  border-radius: 6px;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.bulk-file-label:hover { background: #263451; color: #e2e8f0; }
+
+.bulk-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.bulk-result {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-family: "Courier New", monospace;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #e2e8f0;
+  margin: 0;
+}

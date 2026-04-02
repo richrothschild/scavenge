@@ -262,6 +262,18 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [evEditId, setEvEditId] = useState<string | null>(null);
   const [evMsg, setEvMsg] = useState("");
 
+  // ── Bulk team import ──────────────────────────────────────────
+  const [bulkTeamJson, setBulkTeamJson] = useState("");
+  const [bulkTeamMsg, setBulkTeamMsg] = useState("");
+  const [bulkTeamBusy, setBulkTeamBusy] = useState(false);
+  const [bulkTeamReplace, setBulkTeamReplace] = useState(false);
+
+  // ── Bulk events import ────────────────────────────────────────
+  const [bulkEvJson, setBulkEvJson] = useState("");
+  const [bulkEvMsg, setBulkEvMsg] = useState("");
+  const [bulkEvBusy, setBulkEvBusy] = useState(false);
+  const [bulkEvReplace, setBulkEvReplace] = useState(false);
+
   // ── FIX 3: revealedClueIndex backed by localStorage ──────────
   useEffect(() => {
     if (!teamId) return;
@@ -1223,6 +1235,63 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     setEvMsg("");
   };
 
+  // ── Bulk import helpers ───────────────────────────────────────
+  const runBulkTeamImport = async (jsonText: string) => {
+    setBulkTeamBusy(true); setBulkTeamMsg("");
+    try {
+      const parsed = JSON.parse(jsonText);
+      const res = await fetch(`${apiBase}/admin/team-assignments/bulk`, {
+        method: "POST", headers: adminHeaders,
+        body: JSON.stringify({ teams: parsed, replace: bulkTeamReplace }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const summary = Object.entries(data.results as Record<string, { added: string[]; captain?: string; errors: string[] }>)
+          .map(([tid, r]) => `${tid.toUpperCase()}: ${r.added.length} added${r.captain ? `, captain=${r.captain}` : ""}${r.errors.length ? `, errors: ${r.errors.join("; ")}` : ""}`)
+          .join("\n");
+        setBulkTeamMsg("✓ Done\n" + summary);
+        void fetchTeamAssignments();
+      } else {
+        setBulkTeamMsg("Error: " + (data.error ?? JSON.stringify(data)));
+      }
+    } catch (e) {
+      setBulkTeamMsg("Parse error: " + String(e));
+    } finally {
+      setBulkTeamBusy(false);
+    }
+  };
+
+  const runBulkEventsImport = async (jsonText: string) => {
+    setBulkEvBusy(true); setBulkEvMsg("");
+    try {
+      const parsed = JSON.parse(jsonText);
+      const events = Array.isArray(parsed) ? parsed : (parsed.events ?? parsed);
+      const res = await fetch(`${apiBase}/admin/events/bulk`, {
+        method: "POST", headers: adminHeaders,
+        body: JSON.stringify({ events, replace: bulkEvReplace }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBulkEvMsg(`✓ Created ${data.created}, skipped ${data.skipped}`);
+        void fetchAdminEvents();
+      } else {
+        setBulkEvMsg("Error: " + (data.error ?? JSON.stringify(data)));
+      }
+    } catch (e) {
+      setBulkEvMsg("Parse error: " + String(e));
+    } finally {
+      setBulkEvBusy(false);
+    }
+  };
+
+  const readFileAsText = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target?.result as string);
+      reader.onerror = () => reject(new Error("File read failed"));
+      reader.readAsText(file);
+    });
+
   const firstReviewQueuePage = async () => {
     const limit = parseLimitInput(reviewQueueLimit, 50);
     await fetchReviewQueue({ limit, offset: 0 });
@@ -1418,6 +1487,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   useEffect(() => {
     if (mode !== "admin" || !adminToken || adminView !== "setup") return;
     void fetchTeamAssignments();
+    void fetchAdminEvents();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, adminView, mode]);
 
@@ -2411,6 +2481,120 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                     )}
                   </div>
                 ))}
+              </div>
+
+              {/* ── Bulk Team Import ─────────────────────────── */}
+              <h3>Bulk Team Import</h3>
+              <div className="panel bulk-import-panel">
+                <p className="bulk-hint">
+                  Paste JSON or upload a file. Format:
+                  <button className="btn-template" onClick={() => setBulkTeamJson(JSON.stringify({
+                    spades:   { members: ["Lars","Name2","Name3","Name4"],   captain: "Lars",  pin: "123456" },
+                    hearts:   { members: ["Carl","Name2","Name3","Name4"],   captain: "Carl",  pin: "234567" },
+                    diamonds: { members: ["Rich","Name2","Name3","Name4"],   captain: "Rich",  pin: "345678" },
+                    clubs:    { members: ["Dave","Name2","Name3","Name4"],   captain: "Dave",  pin: "456789" },
+                  }, null, 2))}>Load template</button>
+                </p>
+                <textarea
+                  className="bulk-textarea"
+                  value={bulkTeamJson}
+                  onChange={(e) => setBulkTeamJson(e.target.value)}
+                  placeholder='{ "spades": { "members": ["Lars","Bob"], "captain": "Lars", "pin": "123456" }, ... }'
+                  rows={8}
+                />
+                <div className="bulk-actions">
+                  <label className="bulk-file-label">
+                    Upload JSON file
+                    <input type="file" accept=".json,application/json" style={{ display: "none" }}
+                      onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const txt = await readFileAsText(f); setBulkTeamJson(txt); } }} />
+                  </label>
+                  <label className="bulk-checkbox">
+                    <input type="checkbox" checked={bulkTeamReplace} onChange={(e) => setBulkTeamReplace(e.target.checked)} />
+                    Replace existing members
+                  </label>
+                  <button onClick={() => { void runBulkTeamImport(bulkTeamJson); }} disabled={bulkTeamBusy || !bulkTeamJson.trim()}>
+                    {bulkTeamBusy ? "Importing…" : "Import Teams"}
+                  </button>
+                </div>
+                {bulkTeamMsg && <pre className="bulk-result">{bulkTeamMsg}</pre>}
+              </div>
+
+              {/* ── Events Management ────────────────────────── */}
+              <h3>Events</h3>
+              <div className="panel admin-events-form">
+                <div className="admin-events-fields">
+                  <input placeholder="Event title *" value={evTitle} onChange={(e) => setEvTitle(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <input placeholder="Description" value={evDesc} onChange={(e) => setEvDesc(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <input type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} />
+                  <input type="time" placeholder="Time (HH:MM)" value={evTime} onChange={(e) => setEvTime(e.target.value)} />
+                  <input placeholder="Location *" value={evLocation} onChange={(e) => setEvLocation(e.target.value)} />
+                  <select value={evCategory} onChange={(e) => setEvCategory(e.target.value)}>
+                    <option value="hunt">🗺️ Hunt</option>
+                    <option value="meal">🍽️ Meal</option>
+                    <option value="activity">🎯 Activity</option>
+                    <option value="transport">🚗 Transport</option>
+                    <option value="other">📌 Other</option>
+                  </select>
+                  <input type="number" placeholder="Sort order" value={evSortOrder} onChange={(e) => setEvSortOrder(e.target.value)} style={{ width: "80px" }} />
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <button onClick={() => { void saveEvent(); }}>{evEditId ? "Update Event" : "Add Event"}</button>
+                  {evEditId && <button onClick={() => { setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0"); setEvMsg(""); }}>Cancel</button>}
+                  <button type="button" style={{ marginLeft: "auto" }} onClick={() => { void fetchAdminEvents(); }}>Refresh</button>
+                </div>
+                {evMsg && <p style={{ marginTop: "0.4rem", color: evMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{evMsg}</p>}
+              </div>
+              {adminEvents.length === 0 && <p style={{ color: "#94a3b8" }}>No events yet. Add one above or bulk import below.</p>}
+              <ul className="list" style={{ marginTop: "0.5rem" }}>
+                {adminEvents.map((ev) => (
+                  <li key={ev.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                    <div>
+                      <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}<br />
+                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}</span>
+                      {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
+                    </div>
+                    <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0 }}>
+                      <button onClick={() => startEditEvent(ev)}>Edit</button>
+                      <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Delete</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
+              {/* ── Bulk Events Import ───────────────────────── */}
+              <h3>Bulk Events Import</h3>
+              <div className="panel bulk-import-panel">
+                <p className="bulk-hint">
+                  Paste a JSON array or upload a file.
+                  <button className="btn-template" onClick={() => setBulkEvJson(JSON.stringify([
+                    { title: "Scavenger Hunt Start",  date: "2026-04-11", time: "10:00", location: "Zephyr Hotel, Pier 39",      category: "hunt",      description: "Gather at lobby", sortOrder: 1 },
+                    { title: "Lunch at Pier Market",   date: "2026-04-11", time: "13:00", location: "Pier 39 Marketplace",       category: "meal",      description: "", sortOrder: 5 },
+                    { title: "Waymo to Lombard St",    date: "2026-04-11", time: "14:00", location: "1083 Lombard Street",       category: "transport", description: "Required clue", sortOrder: 8 },
+                    { title: "Final drinks at Buena Vista", date: "2026-04-11", time: "17:00", location: "Buena Vista Bar", category: "meal", description: "End of hunt celebration", sortOrder: 12 },
+                  ], null, 2))}>Load template</button>
+                </p>
+                <textarea
+                  className="bulk-textarea"
+                  value={bulkEvJson}
+                  onChange={(e) => setBulkEvJson(e.target.value)}
+                  placeholder='[{ "title": "Event", "date": "2026-04-11", "time": "10:00", "location": "...", "category": "hunt" }]'
+                  rows={8}
+                />
+                <div className="bulk-actions">
+                  <label className="bulk-file-label">
+                    Upload JSON file
+                    <input type="file" accept=".json,application/json" style={{ display: "none" }}
+                      onChange={async (e) => { const f = e.target.files?.[0]; if (f) { const txt = await readFileAsText(f); setBulkEvJson(txt); } }} />
+                  </label>
+                  <label className="bulk-checkbox">
+                    <input type="checkbox" checked={bulkEvReplace} onChange={(e) => setBulkEvReplace(e.target.checked)} />
+                    Replace all existing events
+                  </label>
+                  <button onClick={() => { void runBulkEventsImport(bulkEvJson); }} disabled={bulkEvBusy || !bulkEvJson.trim()}>
+                    {bulkEvBusy ? "Importing…" : "Import Events"}
+                  </button>
+                </div>
+                {bulkEvMsg && <p className="bulk-result" style={{ color: bulkEvMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{bulkEvMsg}</p>}
               </div>
 
               <h3>Clue Files</h3>

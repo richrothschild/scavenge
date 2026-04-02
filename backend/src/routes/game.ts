@@ -959,5 +959,96 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.status(204).send();
   });
 
+  // ── Bulk events import ───────────────────────────────────────────
+  // Accepts an array of event objects; replaces the entire eventsStore if
+  // `replace=true` (default false = append/merge by title+date key).
+  router.post("/admin/events/bulk", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const { events: incoming, replace = false } = req.body ?? {};
+    if (!Array.isArray(incoming)) {
+      return res.status(400).json({ error: "Body must be { events: [...], replace?: boolean }" });
+    }
+    const VALID_CATS = ["hunt","meal","activity","transport","other"];
+    const created: string[] = [];
+    const skipped: string[] = [];
+    if (replace) eventsStore.splice(0);
+    for (const ev of incoming) {
+      if (!ev?.title?.trim() || !ev?.location?.trim()) { skipped.push(String(ev?.title ?? "?")); continue; }
+      const event = {
+        id: crypto.randomUUID(),
+        title: String(ev.title).trim(),
+        description: String(ev.description ?? "").trim(),
+        date: String(ev.date ?? "").trim(),
+        time: String(ev.time ?? "").trim(),
+        location: String(ev.location).trim(),
+        category: (VALID_CATS.includes(ev.category) ? ev.category : "other") as "hunt"|"meal"|"activity"|"transport"|"other",
+        sortOrder: Number.isFinite(Number(ev.sortOrder)) ? Number(ev.sortOrder) : eventsStore.length,
+      };
+      eventsStore.push(event);
+      created.push(event.title);
+    }
+    return res.json({ created: created.length, skipped: skipped.length, skippedTitles: skipped });
+  });
+
+  // ── Bulk team import ─────────────────────────────────────────────
+  // Accepts:
+  //   { spades: { members: [...], captain: "Name", pin: "123456" }, hearts: {...}, ... }
+  // All fields optional; members array replaces (adds) to existing roster.
+  // Set replace=true to clear each team's roster before adding.
+  router.post("/admin/team-assignments/bulk", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const { teams, replace = false } = req.body ?? {};
+    if (!teams || typeof teams !== "object" || Array.isArray(teams)) {
+      return res.status(400).json({ error: "Body must be { teams: { spades: {...}, ... }, replace?: boolean }" });
+    }
+    const results: Record<string, { added: string[]; captain?: string; errors: string[] }> = {};
+    for (const [rawTeamId, teamData] of Object.entries(teams)) {
+      const teamId = String(rawTeamId).trim().toLowerCase();
+      const data = teamData as { members?: unknown; captain?: unknown; pin?: unknown };
+      const teamResult: { added: string[]; captain?: string; errors: string[] } = { added: [], errors: [] };
+      results[teamId] = teamResult;
+
+      // Clear roster first if replace mode
+      if (replace) {
+        const current = gameEngine.getAdminTeamAssignments().find((t) => t.teamId.toLowerCase() === teamId);
+        if (current) {
+          for (const name of [...current.assignedParticipants]) {
+            await gameEngine.removeParticipantFromTeam(teamId, name);
+          }
+        }
+      }
+
+      // Add members
+      if (Array.isArray(data.members)) {
+        for (const m of data.members) {
+          const name = String(m).trim();
+          if (!name) continue;
+          const r = await gameEngine.assignParticipantToTeam(teamId, name);
+          if ("error" in r) teamResult.errors.push(`${name}: ${r.error}`);
+          else teamResult.added.push(name);
+        }
+      }
+
+      // Set captain + PIN if provided
+      if (data.captain && data.pin) {
+        const r = await gameEngine.assignCaptainToTeam(
+          teamId,
+          String(data.captain).trim(),
+          String(data.pin).trim(),
+          false
+        );
+        if ("error" in r) teamResult.errors.push(`captain: ${r.error}`);
+        else teamResult.captain = String(data.captain).trim();
+      }
+    }
+    return res.json({ results });
+  });
+
   return router;
 };
