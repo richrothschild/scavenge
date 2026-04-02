@@ -104,13 +104,6 @@ paths:
         '200':
           description: Team rankings and progression
 
-  /api/sabotage/catalog:
-    get:
-      summary: Get sabotage catalog
-      responses:
-        '200':
-          description: Sabotage actions
-
   /api/team/me/state:
     get:
       summary: Get current team state
@@ -273,19 +266,6 @@ paths:
       responses:
         '200':
           description: Clue passed
-
-  /api/team/me/sabotage/trigger:
-    post:
-      summary: Trigger sabotage action (captain-only)
-      parameters:
-        - in: header
-          name: x-auth-token
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Sabotage triggered
 
   /api/team/me/security-events:
     post:
@@ -664,7 +644,7 @@ components:
           type: string
         type:
           type: string
-          enum: [SUBMISSION, SABOTAGE, SECURITY, AUDIT]
+          enum: [SUBMISSION, SECURITY, AUDIT]
         timestamp:
           type: string
         title:

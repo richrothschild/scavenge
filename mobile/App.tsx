@@ -38,7 +38,6 @@ export default function App() {
     submissionHistoryTotalPages,
     canPrevSubmissionHistoryPage,
     canNextSubmissionHistoryPage,
-    sabotageCatalog,
     joinCode,
     displayName,
     captainPin,
@@ -46,16 +45,12 @@ export default function App() {
     scanSessionToken,
     scanSessionExpiresAt,
     checkpointPublicId,
-    selectedSabotageActionId,
-    targetTeamId,
     setJoinCode,
     setDisplayName,
     setCaptainPin,
     setSubmissionText,
     setScanSessionToken,
     setCheckpointPublicId,
-    setSelectedSabotageActionId,
-    setTargetTeamId,
     setEventFeedLimit,
     setEventFeedOffset,
     setSubmissionHistoryLimit,
@@ -66,7 +61,6 @@ export default function App() {
     pass,
     createScanSession,
     validateScan,
-    triggerSabotage,
     reportScreenshotAttempt,
     prevEventFeedPage,
     nextEventFeedPage,
@@ -103,7 +97,6 @@ export default function App() {
               <Text style={styles.cardTitle}>Team</Text>
               <Text>{teamName}</Text>
               <Text>Role: {role}</Text>
-              <Text>Sabotage balance: {teamState?.sabotageBalance ?? 0}</Text>
               <Text>Status: {statusMessage}</Text>
               {errorMessage ? <Text style={styles.error}>{errorMessage}</Text> : null}
               <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={reportScreenshotAttempt} disabled={loading}>
@@ -182,41 +175,6 @@ export default function App() {
                   {row.teamName}: {row.scoreTotal} pts · clue {row.currentClueIndex} · {row.eligibilityStatus}
                 </Text>
               ))}
-            </View>
-
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Sabotage Store</Text>
-              {sabotageCatalog.length === 0 ? <Text>No sabotage actions available.</Text> : null}
-              {sabotageCatalog.map((action) => (
-                <Pressable
-                  key={action.id}
-                  style={[styles.choiceRow, selectedSabotageActionId === action.id && styles.choiceSelected]}
-                  onPress={() => setSelectedSabotageActionId(action.id)}
-                >
-                  <Text style={styles.choiceTitle}>{action.name}</Text>
-                  <Text>{action.description}</Text>
-                  <Text>
-                    Cost: {action.cost} · Cooldown: {action.cooldownSeconds}s
-                  </Text>
-                </Pressable>
-              ))}
-
-              {role !== "CAPTAIN" ? (
-                <Text>Read-only for members.</Text>
-              ) : (
-                <>
-                  <TextInput
-                    style={styles.input}
-                    value={targetTeamId}
-                    onChangeText={setTargetTeamId}
-                    placeholder="Target team id (optional)"
-                    autoCapitalize="none"
-                  />
-                  <Pressable style={[styles.button, loading && styles.buttonDisabled]} onPress={triggerSabotage} disabled={loading}>
-                    <Text style={styles.buttonText}>Trigger Sabotage</Text>
-                  </Pressable>
-                </>
-              )}
             </View>
 
             <View style={styles.card}>
@@ -381,20 +339,6 @@ const styles = StyleSheet.create({
   },
   error: {
     color: "#b91c1c"
-  },
-  choiceRow: {
-    borderWidth: 1,
-    borderColor: "#ddd",
-    borderRadius: 6,
-    padding: 8,
-    gap: 4
-  },
-  choiceSelected: {
-    borderColor: "#2563eb",
-    backgroundColor: "#eff6ff"
-  },
-  choiceTitle: {
-    fontWeight: "600"
   },
   feedItem: {
     borderWidth: 1,

@@ -3,7 +3,6 @@ import { mobileApi } from "../services/api";
 import {
   LeaderboardRow,
   ParticipantRole,
-  SabotageAction,
   SubmissionHistoryItem,
   TeamEventFeedItem,
   TeamState
@@ -37,9 +36,6 @@ export const useGameClient = () => {
   const [submissionHistoryTotal, setSubmissionHistoryTotal] = useState(0);
   const [submissionHistoryLimit, setSubmissionHistoryLimit] = useState("8");
   const [submissionHistoryOffset, setSubmissionHistoryOffset] = useState("0");
-  const [sabotageCatalog, setSabotageCatalog] = useState<SabotageAction[]>([]);
-  const [selectedSabotageActionId, setSelectedSabotageActionId] = useState("");
-  const [targetTeamId, setTargetTeamId] = useState("");
 
   const [scanSessionToken, setScanSessionToken] = useState("");
   const [scanSessionExpiresAt, setScanSessionExpiresAt] = useState("");
@@ -78,14 +74,6 @@ export const useGameClient = () => {
     setLeaderboard(data.teams);
   }, []);
 
-  const refreshSabotageCatalog = useCallback(async () => {
-    const data = await mobileApi.getSabotageCatalog();
-    setSabotageCatalog(data.items);
-    if (!selectedSabotageActionId && data.items.length > 0) {
-      setSelectedSabotageActionId(data.items[0].id);
-    }
-  }, [selectedSabotageActionId]);
-
   const refreshEventFeed = useCallback(async (token: string, pagination?: { limit?: number; offset?: number }) => {
     const limit = typeof pagination?.limit === "number" ? pagination.limit : parseLimitInput(eventFeedLimit, 12);
     const offset = typeof pagination?.offset === "number" ? pagination.offset : parseOffsetInput(eventFeedOffset, 0);
@@ -110,12 +98,11 @@ export const useGameClient = () => {
     await Promise.all([
       refreshTeamState(token),
       refreshLeaderboard(),
-      refreshSabotageCatalog(),
       refreshEventFeed(token),
       refreshSubmissionHistory(token)
     ]);
     setStatusMessage("Synced with backend");
-  }, [refreshEventFeed, refreshLeaderboard, refreshSabotageCatalog, refreshSubmissionHistory, refreshTeamState]);
+  }, [refreshEventFeed, refreshLeaderboard, refreshSubmissionHistory, refreshTeamState]);
 
   useEffect(() => {
     if (!authToken) {
@@ -259,34 +246,6 @@ export const useGameClient = () => {
     }
   }, [authToken, checkpointPublicId, refreshAll, scanSessionToken]);
 
-  const triggerSabotage = useCallback(async () => {
-    if (!authToken) {
-      return;
-    }
-
-    if (!selectedSabotageActionId.trim()) {
-      setErrorMessage("Select a sabotage action first.");
-      return;
-    }
-
-    setLoading(true);
-    setErrorMessage(null);
-
-    try {
-      const response = await mobileApi.triggerSabotage(
-        authToken,
-        selectedSabotageActionId.trim(),
-        targetTeamId.trim() || undefined
-      );
-      setStatusMessage(`Sabotage triggered: ${response.action.name}`);
-      await refreshAll(authToken);
-    } catch (error) {
-      setErrorMessage(toErrorMessage(error, "Sabotage trigger failed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [authToken, refreshAll, selectedSabotageActionId, targetTeamId]);
-
   const reportScreenshotAttempt = useCallback(async () => {
     if (!authToken) {
       return;
@@ -429,7 +388,6 @@ export const useGameClient = () => {
     submissionHistoryTotalPages: submissionHistoryPagination.totalPages,
     canPrevSubmissionHistoryPage: submissionHistoryPagination.canPrev,
     canNextSubmissionHistoryPage: submissionHistoryPagination.canNext,
-    sabotageCatalog,
     joinCode,
     displayName,
     captainPin,
@@ -437,16 +395,12 @@ export const useGameClient = () => {
     scanSessionToken,
     scanSessionExpiresAt,
     checkpointPublicId,
-    selectedSabotageActionId,
-    targetTeamId,
     setJoinCode,
     setDisplayName,
     setCaptainPin,
     setSubmissionText,
     setScanSessionToken,
     setCheckpointPublicId,
-    setSelectedSabotageActionId,
-    setTargetTeamId,
     setEventFeedLimit,
     setEventFeedOffset,
     setSubmissionHistoryLimit,
@@ -457,7 +411,6 @@ export const useGameClient = () => {
     pass,
     createScanSession,
     validateScan,
-    triggerSabotage,
     reportScreenshotAttempt,
     prevEventFeedPage,
     nextEventFeedPage,

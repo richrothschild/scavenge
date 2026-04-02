@@ -2,15 +2,13 @@ import {
   JoinResponse,
   LeaderboardRow,
   PaginatedResponse,
-  SabotageAction,
   SecurityEventResponse,
   SubmissionHistoryItem,
   ScanSessionResponse,
   ScanValidateResponse,
   SubmitResponse,
   TeamState,
-  TeamEventFeedItem,
-  TriggerSabotageResponse
+  TeamEventFeedItem
 } from "../types/api";
 
 const apiBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL ?? "http://localhost:3001/api";
@@ -83,18 +81,6 @@ export const mobileApi = {
       method: "POST",
       headers: { "x-auth-token": authToken },
       body: JSON.stringify({ scanSessionToken, checkpointPublicId })
-    });
-  },
-
-  getSabotageCatalog() {
-    return requestJson<{ items: SabotageAction[] }>("/sabotage/catalog", { method: "GET" });
-  },
-
-  triggerSabotage(authToken: string, actionId: string, targetTeamId?: string) {
-    return requestJson<TriggerSabotageResponse>("/team/me/sabotage/trigger", {
-      method: "POST",
-      headers: { "x-auth-token": authToken },
-      body: JSON.stringify({ actionId, targetTeamId })
     });
   },
 

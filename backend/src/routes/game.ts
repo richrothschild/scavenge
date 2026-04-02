@@ -879,5 +879,85 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     });
   });
 
+  // ── Public website events ────────────────────────────────────────
+  // In-memory store; persists for the lifetime of the process.
+  // Survives redeployments only if written to the seed/config layer.
+  // For game-day use, this is sufficient.
+
+  const eventsStore: Array<{
+    id: string;
+    title: string;
+    description: string;
+    date: string;
+    time: string;
+    location: string;
+    category: "hunt" | "meal" | "activity" | "transport" | "other";
+    sortOrder: number;
+  }> = [];
+
+  router.get("/events", (_req, res) => {
+    const sorted = [...eventsStore].sort((a, b) => {
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`);
+    });
+    return res.json({ events: sorted });
+  });
+
+  router.post("/admin/events", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const { title, description = "", date, time, location, category = "other", sortOrder } = req.body ?? {};
+    if (!title?.trim() || !date?.trim() || !time?.trim() || !location?.trim()) {
+      return res.status(400).json({ error: "title, date, time, and location are required." });
+    }
+    const event = {
+      id: crypto.randomUUID(),
+      title: String(title).trim(),
+      description: String(description).trim(),
+      date: String(date).trim(),
+      time: String(time).trim(),
+      location: String(location).trim(),
+      category: (["hunt","meal","activity","transport","other"].includes(category) ? category : "other") as "hunt"|"meal"|"activity"|"transport"|"other",
+      sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : eventsStore.length
+    };
+    eventsStore.push(event);
+    return res.status(201).json(event);
+  });
+
+  router.put("/admin/events/:id", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const idx = eventsStore.findIndex((e) => e.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Event not found." });
+    const existing = eventsStore[idx];
+    const { title, description, date, time, location, category, sortOrder } = req.body ?? {};
+    eventsStore[idx] = {
+      ...existing,
+      ...(title !== undefined && { title: String(title).trim() }),
+      ...(description !== undefined && { description: String(description).trim() }),
+      ...(date !== undefined && { date: String(date).trim() }),
+      ...(time !== undefined && { time: String(time).trim() }),
+      ...(location !== undefined && { location: String(location).trim() }),
+      ...(category !== undefined && ["hunt","meal","activity","transport","other"].includes(category) && { category }),
+      ...(sortOrder !== undefined && Number.isFinite(Number(sortOrder)) && { sortOrder: Number(sortOrder) })
+    };
+    return res.json(eventsStore[idx]);
+  });
+
+  router.delete("/admin/events/:id", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const idx = eventsStore.findIndex((e) => e.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Event not found." });
+    eventsStore.splice(idx, 1);
+    return res.status(204).send();
+  });
+
   return router;
 };

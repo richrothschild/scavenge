@@ -161,8 +161,8 @@ const compressImage = (file: File, maxDimension = 1280, quality = 0.82): Promise
   });
 };
 
-function App() {
-  const isAdminPath = window.location.pathname.startsWith("/admin");
+function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
+  const isAdminPath = forceMode ? forceMode === "admin" : window.location.pathname.startsWith("/admin");
   const [mode] = useState<"player" | "admin">(isAdminPath ? "admin" : "player");
   const [adminView, setAdminView] = useState<"setup" | "live-ops">("live-ops");
   const [joinCode, setJoinCode] = useState("SPADES");
@@ -248,6 +248,19 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState<string>("");
   // ── FIX 8: Member join warning confirmation ───────────────────
   const [memberJoinConfirmed, setMemberJoinConfirmed] = useState(false);
+
+  // ── Admin Events management ───────────────────────────────────
+  type AdminEventItem = { id: string; title: string; description: string; date: string; time: string; location: string; category: string; sortOrder: number; };
+  const [adminEvents, setAdminEvents] = useState<AdminEventItem[]>([]);
+  const [evTitle, setEvTitle] = useState("");
+  const [evDesc, setEvDesc] = useState("");
+  const [evDate, setEvDate] = useState("2026-04-11");
+  const [evTime, setEvTime] = useState("");
+  const [evLocation, setEvLocation] = useState("");
+  const [evCategory, setEvCategory] = useState("other");
+  const [evSortOrder, setEvSortOrder] = useState("0");
+  const [evEditId, setEvEditId] = useState<string | null>(null);
+  const [evMsg, setEvMsg] = useState("");
 
   // ── FIX 3: revealedClueIndex backed by localStorage ──────────
   useEffect(() => {
@@ -1174,6 +1187,40 @@ function App() {
     const offset = parseOffsetInput(reviewQueueOffset);
     const nextOffset = Math.max(0, offset - limit);
     await fetchReviewQueue({ limit, offset: nextOffset });
+  };
+
+  // ── Events management helpers ─────────────────────────────────
+  const fetchAdminEvents = async () => {
+    const res = await fetch(`${apiBase}/events`);
+    if (res.ok) { const data = await res.json(); setAdminEvents(data.events ?? []); }
+  };
+
+  const saveEvent = async () => {
+    if (!evTitle.trim() || !evLocation.trim()) { setEvMsg("Title and location are required."); return; }
+    const body = { title: evTitle.trim(), description: evDesc.trim(), date: evDate.trim(), time: evTime.trim(), location: evLocation.trim(), category: evCategory, sortOrder: Number(evSortOrder) };
+    const url = evEditId ? `${apiBase}/admin/events/${evEditId}` : `${apiBase}/admin/events`;
+    const method = evEditId ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: adminHeaders, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (res.ok) {
+      setEvMsg(`✓ Event ${evEditId ? "updated" : "created"}`);
+      setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0");
+      await fetchAdminEvents();
+    } else {
+      setEvMsg(`Error: ${data.error ?? "Unknown"}`);
+    }
+  };
+
+  const deleteEvent = async (id: string) => {
+    const res = await fetch(`${apiBase}/admin/events/${id}`, { method: "DELETE", headers: adminHeaders });
+    if (res.ok || res.status === 204) { setEvMsg("✓ Event deleted"); await fetchAdminEvents(); }
+    else setEvMsg("Delete failed");
+  };
+
+  const startEditEvent = (ev: typeof adminEvents[number]) => {
+    setEvEditId(ev.id); setEvTitle(ev.title); setEvDesc(ev.description); setEvDate(ev.date);
+    setEvTime(ev.time); setEvLocation(ev.location); setEvCategory(ev.category); setEvSortOrder(String(ev.sortOrder));
+    setEvMsg("");
   };
 
   const firstReviewQueuePage = async () => {
@@ -2653,6 +2700,47 @@ function App() {
                   >
                     Reopen Clue
                   </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {/* ── Events Management ──────────────────────────────────── */}
+          <h3>Website Events <button style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }} onClick={() => { void fetchAdminEvents(); }}>Refresh</button></h3>
+          <div className="panel admin-events-form">
+            <div className="admin-events-fields">
+              <input placeholder="Event title *" value={evTitle} onChange={(e) => setEvTitle(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+              <input placeholder="Description" value={evDesc} onChange={(e) => setEvDesc(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+              <input type="date" value={evDate} onChange={(e) => setEvDate(e.target.value)} />
+              <input type="time" placeholder="Time (HH:MM)" value={evTime} onChange={(e) => setEvTime(e.target.value)} />
+              <input placeholder="Location *" value={evLocation} onChange={(e) => setEvLocation(e.target.value)} />
+              <select value={evCategory} onChange={(e) => setEvCategory(e.target.value)}>
+                <option value="hunt">🗺️ Hunt</option>
+                <option value="meal">🍽️ Meal</option>
+                <option value="activity">🎯 Activity</option>
+                <option value="transport">🚗 Transport</option>
+                <option value="other">📌 Other</option>
+              </select>
+              <input type="number" placeholder="Sort order" value={evSortOrder} onChange={(e) => setEvSortOrder(e.target.value)} style={{ width: "80px" }} />
+            </div>
+            <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+              <button onClick={() => { void saveEvent(); }}>{evEditId ? "Update Event" : "Add Event"}</button>
+              {evEditId && <button onClick={() => { setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0"); setEvMsg(""); }}>Cancel</button>}
+            </div>
+            {evMsg && <p style={{ marginTop: "0.4rem", color: evMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{evMsg}</p>}
+          </div>
+          {adminEvents.length === 0 && <p style={{ color: "#94a3b8" }}>No events yet. Add one above.</p>}
+          <ul className="list" style={{ marginTop: "0.5rem" }}>
+            {adminEvents.map((ev) => (
+              <li key={ev.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
+                <div>
+                  <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}<br />
+                  <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}</span>
+                  {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
+                </div>
+                <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0 }}>
+                  <button onClick={() => startEditEvent(ev)}>Edit</button>
+                  <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Delete</button>
                 </div>
               </li>
             ))}

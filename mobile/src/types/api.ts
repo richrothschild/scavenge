@@ -4,7 +4,6 @@ export type TeamState = {
   teamId: string;
   teamName: string;
   scoreTotal: number;
-  sabotageBalance: number;
   completedCount: number;
   skippedCount: number;
   currentClueIndex: number;
@@ -53,33 +52,9 @@ export type SubmitResponse = {
   pointsAwarded: number;
 };
 
-export type SabotageAction = {
-  id: string;
-  name: string;
-  description: string;
-  cost: number;
-  cooldownSeconds: number;
-  effectType: string;
-  effectDurationSeconds: number;
-};
-
-export type TriggerSabotageResponse = {
-  purchase: {
-    id: string;
-    teamId: string;
-    actionId: string;
-    targetTeamId?: string;
-    costDeducted: number;
-    triggeredAt: string;
-  };
-  action: SabotageAction;
-  sourceTeamId: string;
-  targetTeamId?: string;
-};
-
 export type TeamEventFeedItem = {
   id: string;
-  type: "SUBMISSION" | "SABOTAGE" | "SECURITY" | "AUDIT";
+  type: "SUBMISSION" | "SECURITY" | "AUDIT";
   timestamp: string;
   title: string;
   details?: Record<string, unknown>;

@@ -31,8 +31,6 @@ Set these on Railway backend service:
 - `RATE_LIMIT_SCAN_VALIDATE_MAX=20`
 - `RATE_LIMIT_SUBMIT_WINDOW_MS=300000`
 - `RATE_LIMIT_SUBMIT_MAX=10`
-- `RATE_LIMIT_SABOTAGE_TRIGGER_WINDOW_MS=300000`
-- `RATE_LIMIT_SABOTAGE_TRIGGER_MAX=6`
 
 ## 3) Environment variables (web)
 
@@ -57,6 +55,7 @@ Run against production database in order:
 
 1. `backend/migrations/001_initial.sql`
 2. `backend/migrations/002_runtime_state.sql`
+3. `backend/migrations/003_remove_sabotage.sql` — drops sabotage tables and `teams.sabotage_balance`
 
 ## 5) Seed data
 
