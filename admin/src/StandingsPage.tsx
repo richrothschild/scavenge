@@ -83,7 +83,7 @@ export default function StandingsPage() {
   const adminLogin = async () => {
     setAdminLoginError("");
     try {
-      const res = await fetch(`${apiBase}/admin/login`, {
+      const res = await fetch(`${apiBase}/auth/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password: adminPw }),
