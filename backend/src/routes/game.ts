@@ -884,16 +884,67 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
   // Survives redeployments only if written to the seed/config layer.
   // For game-day use, this is sufficient.
 
-  const eventsStore: Array<{
+  type EventCategory = "hunt" | "meal" | "activity" | "transport" | "other";
+  type EventResult = { teamId: string; place: 1 | 2 | 3; pointsAwarded: number };
+  type EventRecord = {
     id: string;
     title: string;
     description: string;
     date: string;
     time: string;
     location: string;
-    category: "hunt" | "meal" | "activity" | "transport" | "other";
+    category: EventCategory;
     sortOrder: number;
-  }> = [];
+    // Scoring
+    basePoints: number;       // points for participation / completion
+    weight: number;           // multiplier applied to basePoints (default 1.0)
+    firstPlaceBonus: number;  // flat bonus on top of weighted base for 1st
+    secondPlaceBonus: number;
+    thirdPlaceBonus: number;
+    results: EventResult[];   // recorded placements
+  };
+
+  const VALID_CATS: EventCategory[] = ["hunt","meal","activity","transport","other"];
+
+  const parsePoints = (v: unknown, fallback = 0) =>
+    Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : fallback;
+  const parseWeight = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : 1;
+  };
+
+  const buildEvent = (body: Record<string, unknown>, base?: EventRecord): EventRecord => {
+    const now = base ?? {} as Partial<EventRecord>;
+    return {
+      id: (now.id as string) ?? crypto.randomUUID(),
+      title: body.title !== undefined ? String(body.title).trim() : (now.title ?? ""),
+      description: body.description !== undefined ? String(body.description).trim() : (now.description ?? ""),
+      date: body.date !== undefined ? String(body.date).trim() : (now.date ?? ""),
+      time: body.time !== undefined ? String(body.time).trim() : (now.time ?? ""),
+      location: body.location !== undefined ? String(body.location).trim() : (now.location ?? ""),
+      category: (body.category !== undefined && VALID_CATS.includes(body.category as EventCategory)
+        ? body.category as EventCategory
+        : (now.category ?? "other")),
+      sortOrder: body.sortOrder !== undefined && Number.isFinite(Number(body.sortOrder))
+        ? Number(body.sortOrder)
+        : (now.sortOrder ?? eventsStore.length),
+      basePoints:        body.basePoints !== undefined        ? parsePoints(body.basePoints)        : (now.basePoints        ?? 0),
+      weight:            body.weight !== undefined            ? parseWeight(body.weight)             : (now.weight            ?? 1),
+      firstPlaceBonus:   body.firstPlaceBonus !== undefined   ? parsePoints(body.firstPlaceBonus)   : (now.firstPlaceBonus   ?? 0),
+      secondPlaceBonus:  body.secondPlaceBonus !== undefined  ? parsePoints(body.secondPlaceBonus)  : (now.secondPlaceBonus  ?? 0),
+      thirdPlaceBonus:   body.thirdPlaceBonus !== undefined   ? parsePoints(body.thirdPlaceBonus)   : (now.thirdPlaceBonus   ?? 0),
+      results: base?.results ?? [],
+    };
+  };
+
+  // Points a team earns for a given place in this event:
+  //   basePoints * weight  +  placeBonus
+  const calcPoints = (ev: EventRecord, place: 1 | 2 | 3): number => {
+    const bonus = place === 1 ? ev.firstPlaceBonus : place === 2 ? ev.secondPlaceBonus : ev.thirdPlaceBonus;
+    return Math.round(ev.basePoints * ev.weight + bonus);
+  };
+
+  const eventsStore: EventRecord[] = [];
 
   router.get("/events", (_req, res) => {
     const sorted = [...eventsStore].sort((a, b) => {
@@ -905,90 +956,87 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
 
   router.post("/admin/events", (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
-    if (!gameEngine.isAdminTokenValid(adminToken)) {
-      return res.status(401).json({ error: "Admin token required." });
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const body = req.body ?? {};
+    if (!String(body.title ?? "").trim() || !String(body.location ?? "").trim()) {
+      return res.status(400).json({ error: "title and location are required." });
     }
-    const { title, description = "", date, time, location, category = "other", sortOrder } = req.body ?? {};
-    if (!title?.trim() || !date?.trim() || !time?.trim() || !location?.trim()) {
-      return res.status(400).json({ error: "title, date, time, and location are required." });
-    }
-    const event = {
-      id: crypto.randomUUID(),
-      title: String(title).trim(),
-      description: String(description).trim(),
-      date: String(date).trim(),
-      time: String(time).trim(),
-      location: String(location).trim(),
-      category: (["hunt","meal","activity","transport","other"].includes(category) ? category : "other") as "hunt"|"meal"|"activity"|"transport"|"other",
-      sortOrder: Number.isFinite(Number(sortOrder)) ? Number(sortOrder) : eventsStore.length
-    };
+    const event = buildEvent(body);
     eventsStore.push(event);
     return res.status(201).json(event);
   });
 
   router.put("/admin/events/:id", (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
-    if (!gameEngine.isAdminTokenValid(adminToken)) {
-      return res.status(401).json({ error: "Admin token required." });
-    }
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
     const idx = eventsStore.findIndex((e) => e.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Event not found." });
-    const existing = eventsStore[idx];
-    const { title, description, date, time, location, category, sortOrder } = req.body ?? {};
-    eventsStore[idx] = {
-      ...existing,
-      ...(title !== undefined && { title: String(title).trim() }),
-      ...(description !== undefined && { description: String(description).trim() }),
-      ...(date !== undefined && { date: String(date).trim() }),
-      ...(time !== undefined && { time: String(time).trim() }),
-      ...(location !== undefined && { location: String(location).trim() }),
-      ...(category !== undefined && ["hunt","meal","activity","transport","other"].includes(category) && { category }),
-      ...(sortOrder !== undefined && Number.isFinite(Number(sortOrder)) && { sortOrder: Number(sortOrder) })
-    };
+    eventsStore[idx] = buildEvent(req.body ?? {}, eventsStore[idx]);
     return res.json(eventsStore[idx]);
   });
 
   router.delete("/admin/events/:id", (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
-    if (!gameEngine.isAdminTokenValid(adminToken)) {
-      return res.status(401).json({ error: "Admin token required." });
-    }
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
     const idx = eventsStore.findIndex((e) => e.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Event not found." });
     eventsStore.splice(idx, 1);
     return res.status(204).send();
   });
 
+  // ── Record results for an event (admin) ─────────────────────────
+  // Body: { results: [{ teamId, place }, ...] }
+  // place must be 1, 2, or 3.  Replaces any existing results for this event.
+  // Also awards points to the team score via gameEngine.
+  router.post("/admin/events/:id/results", async (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const idx = eventsStore.findIndex((e) => e.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Event not found." });
+    const ev = eventsStore[idx];
+    const incoming: Array<{ teamId: unknown; place: unknown }> = Array.isArray(req.body?.results) ? req.body.results : [];
+
+    // Revoke previously awarded event points from this event (if any)
+    for (const prev of ev.results) {
+      if (prev.pointsAwarded > 0) {
+        await gameEngine.deductTeamPoints(prev.teamId, prev.pointsAwarded, `Event result revoked: ${ev.title}`);
+      }
+    }
+
+    const newResults: EventResult[] = [];
+    const errors: string[] = [];
+    for (const entry of incoming) {
+      const teamId = String(entry.teamId ?? "").trim().toLowerCase();
+      const place = Number(entry.place);
+      if (!teamId) { errors.push("Missing teamId"); continue; }
+      if (![1, 2, 3].includes(place)) { errors.push(`Invalid place ${place} for ${teamId}`); continue; }
+      const pts = calcPoints(ev, place as 1 | 2 | 3);
+      newResults.push({ teamId, place: place as 1 | 2 | 3, pointsAwarded: pts });
+      if (pts > 0) {
+        const r = await gameEngine.awardTeamPoints(teamId, pts, `Event result: ${ev.title} — place ${place}`);
+        if (r && "error" in r) errors.push(`${teamId}: ${r.error}`);
+      }
+    }
+
+    eventsStore[idx] = { ...ev, results: newResults };
+    return res.json({ event: eventsStore[idx], errors });
+  });
+
   // ── Bulk events import ───────────────────────────────────────────
-  // Accepts an array of event objects; replaces the entire eventsStore if
-  // `replace=true` (default false = append/merge by title+date key).
   router.post("/admin/events/bulk", (req, res) => {
     const adminToken = getAdminToken(req.headers as Record<string, unknown>);
-    if (!gameEngine.isAdminTokenValid(adminToken)) {
-      return res.status(401).json({ error: "Admin token required." });
-    }
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
     const { events: incoming, replace = false } = req.body ?? {};
-    if (!Array.isArray(incoming)) {
-      return res.status(400).json({ error: "Body must be { events: [...], replace?: boolean }" });
-    }
-    const VALID_CATS = ["hunt","meal","activity","transport","other"];
+    if (!Array.isArray(incoming)) return res.status(400).json({ error: "Body must be { events: [...], replace?: boolean }" });
     const created: string[] = [];
     const skipped: string[] = [];
     if (replace) eventsStore.splice(0);
     for (const ev of incoming) {
-      if (!ev?.title?.trim() || !ev?.location?.trim()) { skipped.push(String(ev?.title ?? "?")); continue; }
-      const event = {
-        id: crypto.randomUUID(),
-        title: String(ev.title).trim(),
-        description: String(ev.description ?? "").trim(),
-        date: String(ev.date ?? "").trim(),
-        time: String(ev.time ?? "").trim(),
-        location: String(ev.location).trim(),
-        category: (VALID_CATS.includes(ev.category) ? ev.category : "other") as "hunt"|"meal"|"activity"|"transport"|"other",
-        sortOrder: Number.isFinite(Number(ev.sortOrder)) ? Number(ev.sortOrder) : eventsStore.length,
-      };
-      eventsStore.push(event);
-      created.push(event.title);
+      if (!String(ev?.title ?? "").trim() || !String(ev?.location ?? "").trim()) {
+        skipped.push(String(ev?.title ?? "?")); continue;
+      }
+      eventsStore.push(buildEvent(ev as Record<string, unknown>));
+      created.push(String(ev.title).trim());
     }
     return res.json({ created: created.length, skipped: skipped.length, skippedTitles: skipped });
   });

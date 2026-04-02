@@ -250,7 +250,8 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [memberJoinConfirmed, setMemberJoinConfirmed] = useState(false);
 
   // ── Admin Events management ───────────────────────────────────
-  type AdminEventItem = { id: string; title: string; description: string; date: string; time: string; location: string; category: string; sortOrder: number; };
+  type EventResult = { teamId: string; place: 1 | 2 | 3; pointsAwarded: number };
+  type AdminEventItem = { id: string; title: string; description: string; date: string; time: string; location: string; category: string; sortOrder: number; basePoints: number; weight: number; firstPlaceBonus: number; secondPlaceBonus: number; thirdPlaceBonus: number; results: EventResult[]; };
   const [adminEvents, setAdminEvents] = useState<AdminEventItem[]>([]);
   const [evTitle, setEvTitle] = useState("");
   const [evDesc, setEvDesc] = useState("");
@@ -259,8 +260,19 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [evLocation, setEvLocation] = useState("");
   const [evCategory, setEvCategory] = useState("other");
   const [evSortOrder, setEvSortOrder] = useState("0");
+  const [evBasePoints, setEvBasePoints] = useState("0");
+  const [evWeight, setEvWeight] = useState("1");
+  const [evFirstBonus, setEvFirstBonus] = useState("0");
+  const [evSecondBonus, setEvSecondBonus] = useState("0");
+  const [evThirdBonus, setEvThirdBonus] = useState("0");
   const [evEditId, setEvEditId] = useState<string | null>(null);
   const [evMsg, setEvMsg] = useState("");
+  // Results recording
+  const [resultsEventId, setResultsEventId] = useState<string | null>(null);
+  const [resultsFirst, setResultsFirst] = useState("");
+  const [resultsSecond, setResultsSecond] = useState("");
+  const [resultsThird, setResultsThird] = useState("");
+  const [resultsMsg, setResultsMsg] = useState("");
 
   // ── Bulk team import ──────────────────────────────────────────
   const [bulkTeamJson, setBulkTeamJson] = useState("");
@@ -1207,16 +1219,28 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     if (res.ok) { const data = await res.json(); setAdminEvents(data.events ?? []); }
   };
 
+  const clearEvForm = () => {
+    setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation("");
+    setEvCategory("other"); setEvSortOrder("0"); setEvBasePoints("0"); setEvWeight("1");
+    setEvFirstBonus("0"); setEvSecondBonus("0"); setEvThirdBonus("0"); setEvMsg("");
+  };
+
   const saveEvent = async () => {
     if (!evTitle.trim() || !evLocation.trim()) { setEvMsg("Title and location are required."); return; }
-    const body = { title: evTitle.trim(), description: evDesc.trim(), date: evDate.trim(), time: evTime.trim(), location: evLocation.trim(), category: evCategory, sortOrder: Number(evSortOrder) };
+    const body = {
+      title: evTitle.trim(), description: evDesc.trim(), date: evDate.trim(),
+      time: evTime.trim(), location: evLocation.trim(), category: evCategory,
+      sortOrder: Number(evSortOrder), basePoints: Number(evBasePoints),
+      weight: Number(evWeight), firstPlaceBonus: Number(evFirstBonus),
+      secondPlaceBonus: Number(evSecondBonus), thirdPlaceBonus: Number(evThirdBonus),
+    };
     const url = evEditId ? `${apiBase}/admin/events/${evEditId}` : `${apiBase}/admin/events`;
     const method = evEditId ? "PUT" : "POST";
     const res = await fetch(url, { method, headers: adminHeaders, body: JSON.stringify(body) });
     const data = await res.json();
     if (res.ok) {
       setEvMsg(`✓ Event ${evEditId ? "updated" : "created"}`);
-      setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0");
+      clearEvForm();
       await fetchAdminEvents();
     } else {
       setEvMsg(`Error: ${data.error ?? "Unknown"}`);
@@ -1231,8 +1255,33 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
 
   const startEditEvent = (ev: typeof adminEvents[number]) => {
     setEvEditId(ev.id); setEvTitle(ev.title); setEvDesc(ev.description); setEvDate(ev.date);
-    setEvTime(ev.time); setEvLocation(ev.location); setEvCategory(ev.category); setEvSortOrder(String(ev.sortOrder));
-    setEvMsg("");
+    setEvTime(ev.time); setEvLocation(ev.location); setEvCategory(ev.category);
+    setEvSortOrder(String(ev.sortOrder)); setEvBasePoints(String(ev.basePoints ?? 0));
+    setEvWeight(String(ev.weight ?? 1)); setEvFirstBonus(String(ev.firstPlaceBonus ?? 0));
+    setEvSecondBonus(String(ev.secondPlaceBonus ?? 0)); setEvThirdBonus(String(ev.thirdPlaceBonus ?? 0));
+    setEvMsg(""); setResultsEventId(null);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const recordResults = async () => {
+    if (!resultsEventId) return;
+    setResultsMsg("");
+    const results: Array<{ teamId: string; place: number }> = [];
+    if (resultsFirst.trim())  results.push({ teamId: resultsFirst.trim().toLowerCase(),  place: 1 });
+    if (resultsSecond.trim()) results.push({ teamId: resultsSecond.trim().toLowerCase(), place: 2 });
+    if (resultsThird.trim())  results.push({ teamId: resultsThird.trim().toLowerCase(),  place: 3 });
+    const res = await fetch(`${apiBase}/admin/events/${resultsEventId}/results`, {
+      method: "POST", headers: adminHeaders, body: JSON.stringify({ results }),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      const placed = data.event?.results ?? [];
+      const summary = placed.map((r: EventResult) => `${r.teamId} #${r.place} → +${r.pointsAwarded}pts`).join(", ");
+      setResultsMsg(`✓ Recorded. ${summary}${data.errors?.length ? " | Errors: " + data.errors.join("; ") : ""}`);
+      await fetchAdminEvents();
+    } else {
+      setResultsMsg(`Error: ${data.error ?? "Unknown"}`);
+    }
   };
 
   // ── Bulk import helpers ───────────────────────────────────────
@@ -2537,28 +2586,69 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                   </select>
                   <input type="number" placeholder="Sort order" value={evSortOrder} onChange={(e) => setEvSortOrder(e.target.value)} style={{ width: "80px" }} />
                 </div>
+                <div className="ev-scoring-row">
+                  <label className="ev-scoring-label">Base pts<input type="number" min="0" value={evBasePoints} onChange={(e) => setEvBasePoints(e.target.value)} /></label>
+                  <label className="ev-scoring-label">Weight<input type="number" min="0.1" step="0.1" value={evWeight} onChange={(e) => setEvWeight(e.target.value)} /></label>
+                  <span className="ev-scoring-sep">Placement bonuses:</span>
+                  <label className="ev-scoring-label">🥇 1st<input type="number" min="0" value={evFirstBonus} onChange={(e) => setEvFirstBonus(e.target.value)} /></label>
+                  <label className="ev-scoring-label">🥈 2nd<input type="number" min="0" value={evSecondBonus} onChange={(e) => setEvSecondBonus(e.target.value)} /></label>
+                  <label className="ev-scoring-label">🥉 3rd<input type="number" min="0" value={evThirdBonus} onChange={(e) => setEvThirdBonus(e.target.value)} /></label>
+                  <span className="ev-scoring-preview">
+                    Effective: 🥇 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evFirstBonus||0))}
+                    · 🥈 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evSecondBonus||0))}
+                    · 🥉 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evThirdBonus||0))} pts
+                  </span>
+                </div>
                 <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
                   <button onClick={() => { void saveEvent(); }}>{evEditId ? "Update Event" : "Add Event"}</button>
-                  {evEditId && <button onClick={() => { setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0"); setEvMsg(""); }}>Cancel</button>}
+                  {evEditId && <button onClick={clearEvForm}>Cancel</button>}
                   <button type="button" style={{ marginLeft: "auto" }} onClick={() => { void fetchAdminEvents(); }}>Refresh</button>
                 </div>
                 {evMsg && <p style={{ marginTop: "0.4rem", color: evMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{evMsg}</p>}
               </div>
               {adminEvents.length === 0 && <p style={{ color: "#94a3b8" }}>No events yet. Add one above or bulk import below.</p>}
               <ul className="list" style={{ marginTop: "0.5rem" }}>
-                {adminEvents.map((ev) => (
-                  <li key={ev.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                    <div>
-                      <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}<br />
-                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}</span>
-                      {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
-                    </div>
-                    <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0 }}>
-                      <button onClick={() => startEditEvent(ev)}>Edit</button>
-                      <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Delete</button>
-                    </div>
-                  </li>
-                ))}
+                {adminEvents.map((ev) => {
+                  const eff1 = Math.round(ev.basePoints * ev.weight + ev.firstPlaceBonus);
+                  const eff2 = Math.round(ev.basePoints * ev.weight + ev.secondPlaceBonus);
+                  const eff3 = Math.round(ev.basePoints * ev.weight + ev.thirdPlaceBonus);
+                  const hasScoring = ev.basePoints > 0 || ev.firstPlaceBonus > 0;
+                  const placed = ev.results ?? [];
+                  return (
+                    <li key={ev.id} className="ev-list-item">
+                      <div className="ev-list-info">
+                        <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}
+                        {hasScoring && <span className="ev-pts-badge">🥇{eff1} 🥈{eff2} 🥉{eff3} pts</span>}
+                        <br />
+                        <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}{ev.weight !== 1 ? ` · ×${ev.weight} weight` : ""}</span>
+                        {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
+                        {placed.length > 0 && (
+                          <div className="ev-results-summary">
+                            {placed.map((r) => <span key={r.teamId} className="ev-result-pill">#{r.place} {r.teamId.toUpperCase()} +{r.pointsAwarded}pts</span>)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="ev-list-actions">
+                        <button onClick={() => startEditEvent(ev)}>Edit</button>
+                        <button onClick={() => { setResultsEventId(ev.id === resultsEventId ? null : ev.id); setResultsFirst(""); setResultsSecond(""); setResultsThird(""); setResultsMsg(""); }}>
+                          {ev.id === resultsEventId ? "Cancel" : "Results"}
+                        </button>
+                        <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Del</button>
+                      </div>
+                      {resultsEventId === ev.id && (
+                        <div className="ev-results-panel">
+                          <div className="ev-results-row">
+                            <label>🥇 1st team<select value={resultsFirst} onChange={(e) => setResultsFirst(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.firstPlaceBonus)}pts)</option>)}</select></label>
+                            <label>🥈 2nd team<select value={resultsSecond} onChange={(e) => setResultsSecond(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.secondPlaceBonus)}pts)</option>)}</select></label>
+                            <label>🥉 3rd team<select value={resultsThird} onChange={(e) => setResultsThird(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.thirdPlaceBonus)}pts)</option>)}</select></label>
+                          </div>
+                          <button onClick={() => { void recordResults(); }}>Save Results &amp; Award Points</button>
+                          {resultsMsg && <p style={{ color: resultsMsg.startsWith("✓") ? "#4ade80" : "#f87171", fontSize: "0.82rem", marginTop: "0.3rem" }}>{resultsMsg}</p>}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
 
               {/* ── Bulk Events Import ───────────────────────── */}
@@ -2567,10 +2657,10 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 <p className="bulk-hint">
                   Paste a JSON array or upload a file.
                   <button className="btn-template" onClick={() => setBulkEvJson(JSON.stringify([
-                    { title: "Scavenger Hunt Start",  date: "2026-04-11", time: "10:00", location: "Zephyr Hotel, Pier 39",      category: "hunt",      description: "Gather at lobby", sortOrder: 1 },
-                    { title: "Lunch at Pier Market",   date: "2026-04-11", time: "13:00", location: "Pier 39 Marketplace",       category: "meal",      description: "", sortOrder: 5 },
-                    { title: "Waymo to Lombard St",    date: "2026-04-11", time: "14:00", location: "1083 Lombard Street",       category: "transport", description: "Required clue", sortOrder: 8 },
-                    { title: "Final drinks at Buena Vista", date: "2026-04-11", time: "17:00", location: "Buena Vista Bar", category: "meal", description: "End of hunt celebration", sortOrder: 12 },
+                    { title: "Scavenger Hunt Start", date: "2026-04-11", time: "10:00", location: "Zephyr Hotel, Pier 39", category: "hunt", description: "Gather at lobby", sortOrder: 1, basePoints: 0, weight: 1, firstPlaceBonus: 500, secondPlaceBonus: 300, thirdPlaceBonus: 100 },
+                    { title: "Lunch at Pier Market",  date: "2026-04-11", time: "13:00", location: "Pier 39 Marketplace",  category: "meal", description: "", sortOrder: 5, basePoints: 0, weight: 1, firstPlaceBonus: 0, secondPlaceBonus: 0, thirdPlaceBonus: 0 },
+                    { title: "Waymo to Lombard St",   date: "2026-04-11", time: "14:00", location: "1083 Lombard Street",  category: "transport", description: "Required clue", sortOrder: 8, basePoints: 0, weight: 1, firstPlaceBonus: 0, secondPlaceBonus: 0, thirdPlaceBonus: 0 },
+                    { title: "Final Standings",       date: "2026-04-11", time: "17:00", location: "Buena Vista Bar",      category: "activity", description: "Overall finish", sortOrder: 12, basePoints: 0, weight: 1, firstPlaceBonus: 1000, secondPlaceBonus: 500, thirdPlaceBonus: 250 },
                   ], null, 2))}>Load template</button>
                 </p>
                 <textarea
@@ -2907,27 +2997,68 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
               </select>
               <input type="number" placeholder="Sort order" value={evSortOrder} onChange={(e) => setEvSortOrder(e.target.value)} style={{ width: "80px" }} />
             </div>
+            <div className="ev-scoring-row">
+              <label className="ev-scoring-label">Base pts<input type="number" min="0" value={evBasePoints} onChange={(e) => setEvBasePoints(e.target.value)} /></label>
+              <label className="ev-scoring-label">Weight<input type="number" min="0.1" step="0.1" value={evWeight} onChange={(e) => setEvWeight(e.target.value)} /></label>
+              <span className="ev-scoring-sep">Placement bonuses:</span>
+              <label className="ev-scoring-label">🥇 1st<input type="number" min="0" value={evFirstBonus} onChange={(e) => setEvFirstBonus(e.target.value)} /></label>
+              <label className="ev-scoring-label">🥈 2nd<input type="number" min="0" value={evSecondBonus} onChange={(e) => setEvSecondBonus(e.target.value)} /></label>
+              <label className="ev-scoring-label">🥉 3rd<input type="number" min="0" value={evThirdBonus} onChange={(e) => setEvThirdBonus(e.target.value)} /></label>
+              <span className="ev-scoring-preview">
+                Effective: 🥇 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evFirstBonus||0))}
+                · 🥈 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evSecondBonus||0))}
+                · 🥉 {Math.round(Number(evBasePoints||0)*Number(evWeight||1)+Number(evThirdBonus||0))} pts
+              </span>
+            </div>
             <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
               <button onClick={() => { void saveEvent(); }}>{evEditId ? "Update Event" : "Add Event"}</button>
-              {evEditId && <button onClick={() => { setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation(""); setEvCategory("other"); setEvSortOrder("0"); setEvMsg(""); }}>Cancel</button>}
+              {evEditId && <button onClick={clearEvForm}>Cancel</button>}
             </div>
             {evMsg && <p style={{ marginTop: "0.4rem", color: evMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{evMsg}</p>}
           </div>
           {adminEvents.length === 0 && <p style={{ color: "#94a3b8" }}>No events yet. Add one above.</p>}
           <ul className="list" style={{ marginTop: "0.5rem" }}>
-            {adminEvents.map((ev) => (
-              <li key={ev.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "0.5rem" }}>
-                <div>
-                  <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}<br />
-                  <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}</span>
-                  {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
-                </div>
-                <div style={{ display: "flex", gap: "0.3rem", flexShrink: 0 }}>
-                  <button onClick={() => startEditEvent(ev)}>Edit</button>
-                  <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Delete</button>
-                </div>
-              </li>
-            ))}
+            {adminEvents.map((ev) => {
+              const eff1 = Math.round(ev.basePoints * ev.weight + ev.firstPlaceBonus);
+              const eff2 = Math.round(ev.basePoints * ev.weight + ev.secondPlaceBonus);
+              const eff3 = Math.round(ev.basePoints * ev.weight + ev.thirdPlaceBonus);
+              const hasScoring = ev.basePoints > 0 || ev.firstPlaceBonus > 0;
+              const placed = ev.results ?? [];
+              return (
+                <li key={ev.id} className="ev-list-item">
+                  <div className="ev-list-info">
+                    <strong>{ev.title}</strong> · {ev.date} {ev.time && `@ ${ev.time}`}
+                    {hasScoring && <span className="ev-pts-badge">🥇{eff1} 🥈{eff2} 🥉{eff3} pts</span>}
+                    <br />
+                    <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}>📍 {ev.location} · {ev.category}{ev.weight !== 1 ? ` · ×${ev.weight} weight` : ""}</span>
+                    {ev.description && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {ev.description}</span>}
+                    {placed.length > 0 && (
+                      <div className="ev-results-summary">
+                        {placed.map((r) => <span key={r.teamId} className="ev-result-pill">#{r.place} {r.teamId.toUpperCase()} +{r.pointsAwarded}pts</span>)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="ev-list-actions">
+                    <button onClick={() => startEditEvent(ev)}>Edit</button>
+                    <button onClick={() => { setResultsEventId(ev.id === resultsEventId ? null : ev.id); setResultsFirst(""); setResultsSecond(""); setResultsThird(""); setResultsMsg(""); }}>
+                      {ev.id === resultsEventId ? "Cancel" : "Results"}
+                    </button>
+                    <button className="btn-danger" onClick={() => { if (window.confirm(`Delete "${ev.title}"?`)) void deleteEvent(ev.id); }}>Del</button>
+                  </div>
+                  {resultsEventId === ev.id && (
+                    <div className="ev-results-panel">
+                      <div className="ev-results-row">
+                        <label>🥇 1st team<select value={resultsFirst} onChange={(e) => setResultsFirst(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.firstPlaceBonus)}pts)</option>)}</select></label>
+                        <label>🥈 2nd team<select value={resultsSecond} onChange={(e) => setResultsSecond(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.secondPlaceBonus)}pts)</option>)}</select></label>
+                        <label>🥉 3rd team<select value={resultsThird} onChange={(e) => setResultsThird(e.target.value)}><option value="">—</option>{["spades","hearts","diamonds","clubs"].map((t) => <option key={t} value={t}>{t.toUpperCase()} (+{Math.round(ev.basePoints * ev.weight + ev.thirdPlaceBonus)}pts)</option>)}</select></label>
+                      </div>
+                      <button onClick={() => { void recordResults(); }}>Save Results &amp; Award Points</button>
+                      {resultsMsg && <p style={{ color: resultsMsg.startsWith("✓") ? "#4ade80" : "#f87171", fontSize: "0.82rem", marginTop: "0.3rem" }}>{resultsMsg}</p>}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
 
           <h3>Audit Logs</h3>

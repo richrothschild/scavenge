@@ -1832,6 +1832,50 @@ button:disabled {
   margin-top: 0.15rem;
 }
 
+.event-card-scoring {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.event-place-badge {
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.place-1 { background: rgba(251,191,36,0.15); color: #fbbf24; }
+.place-2 { background: rgba(148,163,184,0.15); color: #94a3b8; }
+.place-3 { background: rgba(180,130,90,0.15); color: #b47a50; }
+.place-base { background: rgba(99,102,241,0.15); color: #818cf8; }
+
+.event-weight-badge {
+  background: rgba(16,185,129,0.12);
+  color: #34d399;
+  border-radius: 10px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.event-card-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.event-result-chip {
+  background: rgba(74,222,128,0.1);
+  color: #4ade80;
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+
 /* ── Admin Events form ──────────────────────────────────────── */
 .admin-events-form {
   display: flex;
@@ -1853,6 +1897,130 @@ button:disabled {
   border-radius: 6px;
   padding: 0.35rem 0.6rem;
   font-size: 0.85rem;
+}
+
+/* Scoring row */
+.ev-scoring-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid #1e293b;
+}
+
+.ev-scoring-label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  gap: 0.15rem;
+}
+
+.ev-scoring-label input {
+  background: #0f172a;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 5px;
+  padding: 0.25rem 0.4rem;
+  width: 70px;
+  font-size: 0.82rem;
+}
+
+.ev-scoring-sep {
+  font-size: 0.72rem;
+  color: #475569;
+  padding: 0 0.25rem;
+}
+
+.ev-scoring-preview {
+  font-size: 0.78rem;
+  color: #fbbf24;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* Event list items */
+.ev-list-item {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 0;
+  border-bottom: 1px solid #1e293b;
+  align-items: flex-start;
+}
+
+.ev-list-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.ev-list-actions {
+  display: flex;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.ev-pts-badge {
+  display: inline-block;
+  background: rgba(251, 191, 36, 0.12);
+  color: #fbbf24;
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.75rem;
+  margin-left: 0.4rem;
+  font-weight: 600;
+}
+
+.ev-results-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.35rem;
+}
+
+.ev-result-pill {
+  background: rgba(74, 222, 128, 0.12);
+  color: #4ade80;
+  border-radius: 10px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.73rem;
+  font-weight: 600;
+}
+
+/* Results panel (expands inline) */
+.ev-results-panel {
+  width: 100%;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin-top: 0.25rem;
+}
+
+.ev-results-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 0.6rem;
+}
+
+.ev-results-row label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  gap: 0.2rem;
+}
+
+.ev-results-row select {
+  background: #1e293b;
+  border: 1px solid #334155;
+  color: #e2e8f0;
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.82rem;
 }
 
 /* ── Bulk Import Panel ──────────────────────────────────────── */

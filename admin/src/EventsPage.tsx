@@ -7,6 +7,7 @@ const apiBase =
     ? "https://scavenge-backend-production.up.railway.app/api"
     : "http://localhost:3001/api");
 
+type EventResult = { teamId: string; place: 1 | 2 | 3; pointsAwarded: number };
 type EventItem = {
   id: string;
   title: string;
@@ -16,6 +17,12 @@ type EventItem = {
   location: string;
   category: "hunt" | "meal" | "activity" | "transport" | "other";
   sortOrder: number;
+  basePoints: number;
+  weight: number;
+  firstPlaceBonus: number;
+  secondPlaceBonus: number;
+  thirdPlaceBonus: number;
+  results: EventResult[];
 };
 
 const CATEGORY_ICONS: Record<string, string> = {
@@ -123,6 +130,30 @@ export default function EventsPage() {
                     <div className="event-card-desc">{ev.description}</div>
                   )}
                   <div className="event-card-location">📍 {ev.location}</div>
+                  {(ev.basePoints > 0 || ev.firstPlaceBonus > 0) && (
+                    <div className="event-card-scoring">
+                      {ev.firstPlaceBonus > 0 && (
+                        <>
+                          <span className="event-place-badge place-1">🥇 {Math.round(ev.basePoints * ev.weight + ev.firstPlaceBonus)} pts</span>
+                          <span className="event-place-badge place-2">🥈 {Math.round(ev.basePoints * ev.weight + ev.secondPlaceBonus)} pts</span>
+                          <span className="event-place-badge place-3">🥉 {Math.round(ev.basePoints * ev.weight + ev.thirdPlaceBonus)} pts</span>
+                        </>
+                      )}
+                      {ev.basePoints > 0 && ev.firstPlaceBonus === 0 && (
+                        <span className="event-place-badge place-base">{Math.round(ev.basePoints * ev.weight)} pts</span>
+                      )}
+                      {ev.weight > 1 && <span className="event-weight-badge">×{ev.weight} weight</span>}
+                    </div>
+                  )}
+                  {ev.results && ev.results.length > 0 && (
+                    <div className="event-card-results">
+                      {ev.results.map((r) => (
+                        <span key={r.teamId} className="event-result-chip">
+                          {r.place === 1 ? "🥇" : r.place === 2 ? "🥈" : "🥉"} {r.teamId.toUpperCase()} +{r.pointsAwarded}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
