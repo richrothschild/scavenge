@@ -287,6 +287,16 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [bulkEvBusy, setBulkEvBusy] = useState(false);
   const [bulkEvReplace, setBulkEvReplace] = useState(false);
 
+  // ── Packing list management ───────────────────────────────────
+  type PackingItem = { id: string; text: string; category: string; sortOrder: number; note: string };
+  const [packingItems, setPackingItems] = useState<PackingItem[]>([]);
+  const [pkText, setPkText] = useState("");
+  const [pkCategory, setPkCategory] = useState("other");
+  const [pkNote, setPkNote] = useState("");
+  const [pkSortOrder, setPkSortOrder] = useState("0");
+  const [pkEditId, setPkEditId] = useState<string | null>(null);
+  const [pkMsg, setPkMsg] = useState("");
+
   // ── FIX 3: revealedClueIndex backed by localStorage ──────────
   useEffect(() => {
     if (!teamId) return;
@@ -1220,6 +1230,38 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     if (res.ok) { const data = await res.json(); setAdminEvents(data.events ?? []); }
   };
 
+  const fetchPackingItems = async () => {
+    const res = await fetch(`${apiBase}/packing`);
+    if (res.ok) { const data = await res.json(); setPackingItems(data.items ?? []); }
+  };
+
+  const clearPkForm = () => {
+    setPkEditId(null); setPkText(""); setPkCategory("other"); setPkNote(""); setPkSortOrder("0"); setPkMsg("");
+  };
+
+  const savePkItem = async () => {
+    if (!pkText.trim()) { setPkMsg("Item text is required."); return; }
+    const body = { text: pkText.trim(), category: pkCategory, note: pkNote.trim(), sortOrder: Number(pkSortOrder) };
+    const url = pkEditId ? `${apiBase}/admin/packing/${pkEditId}` : `${apiBase}/admin/packing`;
+    const method = pkEditId ? "PUT" : "POST";
+    const res = await fetch(url, { method, headers: adminHeaders, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (res.ok) { setPkMsg(`✓ Item ${pkEditId ? "updated" : "added"}`); clearPkForm(); await fetchPackingItems(); }
+    else { setPkMsg(`Error: ${data.error ?? "Unknown"}`); }
+  };
+
+  const deletePkItem = async (id: string) => {
+    const res = await fetch(`${apiBase}/admin/packing/${id}`, { method: "DELETE", headers: adminHeaders });
+    if (res.ok || res.status === 204) { setPkMsg("✓ Item deleted"); await fetchPackingItems(); }
+    else setPkMsg("Delete failed");
+  };
+
+  const startEditPkItem = (item: PackingItem) => {
+    setPkEditId(item.id); setPkText(item.text); setPkCategory(item.category);
+    setPkNote(item.note); setPkSortOrder(String(item.sortOrder)); setPkMsg("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   const clearEvForm = () => {
     setEvEditId(null); setEvTitle(""); setEvDesc(""); setEvTime(""); setEvLocation("");
     setEvCategory("other"); setEvSortOrder("0"); setEvBasePoints("0"); setEvWeight("1");
@@ -1538,6 +1580,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     if (mode !== "admin" || !adminToken || adminView !== "setup") return;
     void fetchTeamAssignments();
     void fetchAdminEvents();
+    void fetchPackingItems();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminToken, adminView, mode]);
 
@@ -2693,6 +2736,44 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 </div>
                 {bulkEvMsg && <p className="bulk-result" style={{ color: bulkEvMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{bulkEvMsg}</p>}
               </div>
+
+              {/* ── Packing List Management ──────────────────── */}
+              <h3>What to Bring <button style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }} onClick={() => { void fetchPackingItems(); }}>Refresh</button></h3>
+              <div className="panel admin-events-form">
+                <div className="admin-events-fields">
+                  <input placeholder="Item text *" value={pkText} onChange={(e) => setPkText(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <input placeholder="Note (optional)" value={pkNote} onChange={(e) => setPkNote(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <select value={pkCategory} onChange={(e) => setPkCategory(e.target.value)}>
+                    <option value="clothing">👕 Clothing</option>
+                    <option value="gear">🎒 Gear &amp; Accessories</option>
+                    <option value="documents">📄 Documents &amp; IDs</option>
+                    <option value="health">💊 Health &amp; Toiletries</option>
+                    <option value="other">📦 Other</option>
+                  </select>
+                  <input type="number" placeholder="Sort order" value={pkSortOrder} onChange={(e) => setPkSortOrder(e.target.value)} style={{ width: "80px" }} />
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <button onClick={() => { void savePkItem(); }}>{pkEditId ? "Update Item" : "Add Item"}</button>
+                  {pkEditId && <button onClick={clearPkForm}>Cancel</button>}
+                </div>
+                {pkMsg && <p style={{ marginTop: "0.4rem", color: pkMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{pkMsg}</p>}
+              </div>
+              {packingItems.length === 0 && <p style={{ color: "#94a3b8" }}>No packing items yet. Add one above.</p>}
+              <ul className="list" style={{ marginTop: "0.5rem" }}>
+                {packingItems.map((item) => (
+                  <li key={item.id} className="ev-list-item">
+                    <div className="ev-list-info">
+                      <strong>{item.text}</strong>
+                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.category}</span>
+                      {item.note && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.note}</span>}
+                    </div>
+                    <div className="ev-list-actions">
+                      <button onClick={() => startEditPkItem(item)}>Edit</button>
+                      <button className="btn-danger" onClick={() => { if (window.confirm(`Remove "${item.text}"?`)) void deletePkItem(item.id); }}>Del</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
               <h3>Clue Files</h3>
               <form onSubmit={uploadAdminCluesFile} className="panel">

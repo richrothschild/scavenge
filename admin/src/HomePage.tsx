@@ -29,6 +29,12 @@ export default function HomePage() {
           <span className="home-card-title">Events</span>
           <span className="home-card-desc">Schedule · Locations · Timing</span>
         </button>
+
+        <button className="home-card packing-card" onClick={() => navigate("/packing")}>
+          <span className="home-card-icon">🎒</span>
+          <span className="home-card-title">What to Bring</span>
+          <span className="home-card-desc">Packing list · Gear · Essentials</span>
+        </button>
       </nav>
 
       <footer className="home-footer">

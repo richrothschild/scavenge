@@ -1137,5 +1137,98 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.json({ results });
   });
 
+  // ── What to Bring (packing list) ────────────────────────────────
+  type PackingCategory = "clothing" | "gear" | "documents" | "health" | "other";
+  type PackingItem = {
+    id: string;
+    text: string;
+    category: PackingCategory;
+    sortOrder: number;
+    note: string;
+  };
+
+  const VALID_PACKING_CATS: PackingCategory[] = ["clothing","gear","documents","health","other"];
+
+  const packingFilePath = (() => {
+    const railwayVolume = "/data";
+    const dir = fs.existsSync(railwayVolume) ? railwayVolume : path.resolve(process.cwd());
+    return path.join(dir, "packing-store.json");
+  })();
+
+  const loadPackingFromDisk = (): PackingItem[] => {
+    try {
+      if (fs.existsSync(packingFilePath)) {
+        const raw = JSON.parse(fs.readFileSync(packingFilePath, "utf-8"));
+        if (Array.isArray(raw)) return raw as PackingItem[];
+      }
+    } catch { /* ignore */ }
+    return [];
+  };
+
+  const savePackingToDisk = (store: PackingItem[]): void => {
+    try {
+      fs.writeFileSync(packingFilePath, JSON.stringify(store, null, 2), "utf-8");
+    } catch {
+      console.warn("[packing] Could not write packing-store.json:", packingFilePath);
+    }
+  };
+
+  const packingStore: PackingItem[] = loadPackingFromDisk();
+
+  const buildPackingItem = (body: Record<string, unknown>, base?: PackingItem): PackingItem => {
+    const now = base ?? {} as Partial<PackingItem>;
+    return {
+      id: (now.id as string) ?? crypto.randomUUID(),
+      text: body.text !== undefined ? String(body.text).trim() : (now.text ?? ""),
+      category: (body.category !== undefined && VALID_PACKING_CATS.includes(body.category as PackingCategory)
+        ? body.category as PackingCategory
+        : (now.category ?? "other")),
+      sortOrder: body.sortOrder !== undefined && Number.isFinite(Number(body.sortOrder))
+        ? Number(body.sortOrder)
+        : (now.sortOrder ?? packingStore.length),
+      note: body.note !== undefined ? String(body.note).trim() : (now.note ?? ""),
+    };
+  };
+
+  router.get("/packing", (_req, res) => {
+    const sorted = [...packingStore].sort((a, b) => {
+      if (a.category !== b.category) return a.category.localeCompare(b.category);
+      if (a.sortOrder !== b.sortOrder) return a.sortOrder - b.sortOrder;
+      return a.text.localeCompare(b.text);
+    });
+    return res.json({ items: sorted });
+  });
+
+  router.post("/admin/packing", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const body = req.body ?? {};
+    if (!String(body.text ?? "").trim()) return res.status(400).json({ error: "text is required." });
+    const item = buildPackingItem(body);
+    packingStore.push(item);
+    savePackingToDisk(packingStore);
+    return res.status(201).json(item);
+  });
+
+  router.put("/admin/packing/:id", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const idx = packingStore.findIndex((i) => i.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Item not found." });
+    packingStore[idx] = buildPackingItem(req.body ?? {}, packingStore[idx]);
+    savePackingToDisk(packingStore);
+    return res.json(packingStore[idx]);
+  });
+
+  router.delete("/admin/packing/:id", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const idx = packingStore.findIndex((i) => i.id === req.params.id);
+    if (idx === -1) return res.status(404).json({ error: "Item not found." });
+    packingStore.splice(idx, 1);
+    savePackingToDisk(packingStore);
+    return res.status(204).send();
+  });
+
   return router;
 };

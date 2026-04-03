@@ -1516,6 +1516,7 @@ button:disabled {
 .hunt-card { border-left: 4px solid #3b82f6; }
 .standings-card { border-left: 4px solid #f59e0b; }
 .events-card { border-left: 4px solid #10b981; }
+.packing-card { border-left: 4px solid #a78bfa; }
 
 .home-footer {
   margin-top: 3rem;
@@ -1766,6 +1767,57 @@ button:disabled {
   text-align: center;
   color: #64748b;
   padding: 3rem 1rem;
+}
+
+/* ── Packing Page ─────────────────────────────────────────── */
+.packing-category-group {
+  padding: 1rem 1.25rem 0;
+}
+
+.packing-category-heading {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 0.6rem;
+}
+
+.packing-list {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.packing-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+
+.packing-item-check {
+  font-size: 1.1rem;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.packing-item-text {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #e2e8f0;
+  flex: 1;
+}
+
+.packing-item-note {
+  font-size: 0.8rem;
+  color: #64748b;
+  flex-shrink: 0;
 }
 
 .events-day-group {
