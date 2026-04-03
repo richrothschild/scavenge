@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Request, Response, Router } from "express";
 import { Server } from "socket.io";
 import { z } from "zod";
@@ -944,7 +946,39 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return Math.round(ev.basePoints * ev.weight + bonus);
   };
 
-  const eventsStore: EventRecord[] = [];
+  // ── Events persistence ───────────────────────────────────────────
+  // Persists to /data/events-store.json (Railway volume) if that directory
+  // exists, otherwise falls back to the process working directory.
+  // Mount a Railway Volume at /data on the backend service for full
+  // cross-deployment persistence.
+  const eventsFilePath = (() => {
+    const railwayVolume = "/data";
+    const dir = fs.existsSync(railwayVolume) ? railwayVolume : path.resolve(process.cwd());
+    return path.join(dir, "events-store.json");
+  })();
+
+  const loadEventsFromDisk = (): EventRecord[] => {
+    try {
+      if (fs.existsSync(eventsFilePath)) {
+        const raw = JSON.parse(fs.readFileSync(eventsFilePath, "utf-8"));
+        if (Array.isArray(raw)) return raw as EventRecord[];
+      }
+    } catch {
+      // ignore parse errors; start fresh
+    }
+    return [];
+  };
+
+  const saveEventsToDisk = (store: EventRecord[]): void => {
+    try {
+      fs.writeFileSync(eventsFilePath, JSON.stringify(store, null, 2), "utf-8");
+    } catch {
+      // best-effort; log but don't crash
+      console.warn("[events] Could not write events-store.json:", eventsFilePath);
+    }
+  };
+
+  const eventsStore: EventRecord[] = loadEventsFromDisk();
 
   router.get("/events", (_req, res) => {
     const sorted = [...eventsStore].sort((a, b) => {
@@ -963,6 +997,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
     const event = buildEvent(body);
     eventsStore.push(event);
+    saveEventsToDisk(eventsStore);
     return res.status(201).json(event);
   });
 
@@ -972,6 +1007,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const idx = eventsStore.findIndex((e) => e.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Event not found." });
     eventsStore[idx] = buildEvent(req.body ?? {}, eventsStore[idx]);
+    saveEventsToDisk(eventsStore);
     return res.json(eventsStore[idx]);
   });
 
@@ -981,6 +1017,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const idx = eventsStore.findIndex((e) => e.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Event not found." });
     eventsStore.splice(idx, 1);
+    saveEventsToDisk(eventsStore);
     return res.status(204).send();
   });
 
@@ -1019,6 +1056,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
 
     eventsStore[idx] = { ...ev, results: newResults };
+    saveEventsToDisk(eventsStore);
     return res.json({ event: eventsStore[idx], errors });
   });
 
@@ -1038,6 +1076,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       eventsStore.push(buildEvent(ev as Record<string, unknown>));
       created.push(String(ev.title).trim());
     }
+    saveEventsToDisk(eventsStore);
     return res.json({ created: created.length, skipped: skipped.length, skippedTitles: skipped });
   });
 
