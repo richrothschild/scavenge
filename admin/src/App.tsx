@@ -84,6 +84,7 @@ type GameStatusPayload = {
   name: string;
   timezone: string;
   start_time?: string;
+  testMode?: boolean;
 };
 
 type RealtimeEventItem = {
@@ -532,9 +533,9 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
 
   const joinTeam = async (event: FormEvent) => {
     event.preventDefault();
-    // FIX 8: Warn when joining without PIN
     const trimmedPin = captainPin.trim();
-    if (!trimmedPin && !memberJoinConfirmed) {
+    // In test mode the backend grants CAPTAIN to everyone — skip the PIN warning
+    if (!gameStatus?.testMode && !trimmedPin && !memberJoinConfirmed) {
       setMemberJoinConfirmed(true);
       setStatusMessage("No captain PIN entered — you'll join as a member and won't be able to submit answers. Tap Join Hunt again to confirm.");
       return;
@@ -1885,18 +1886,24 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 ) : (
                   <div className="empty-roster-note">No players are assigned to this team yet. Ask the Dictator to add you first.</div>
                 )}
-                <label className="field-label">
-                  Captain PIN <span className="field-optional">(captains only — leave blank if member)</span>
-                </label>
-                <input
-                  data-testid="captain-pin-input"
-                  className="join-input"
-                  type="password"
-                  inputMode="numeric"
-                  value={captainPin}
-                  onChange={(e) => { setCaptainPin(e.target.value); setMemberJoinConfirmed(false); }}
-                  placeholder="6-digit PIN"
-                />
+                {gameStatus?.testMode ? (
+                  <div className="test-mode-banner">🧪 Test Mode — PIN skipped, everyone joins as captain</div>
+                ) : (
+                  <>
+                    <label className="field-label">
+                      Captain PIN <span className="field-optional">(captains only — leave blank if member)</span>
+                    </label>
+                    <input
+                      data-testid="captain-pin-input"
+                      className="join-input"
+                      type="password"
+                      inputMode="numeric"
+                      value={captainPin}
+                      onChange={(e) => { setCaptainPin(e.target.value); setMemberJoinConfirmed(false); }}
+                      placeholder="6-digit PIN"
+                    />
+                  </>
+                )}
                 <button data-testid="join-submit-btn" className="join-btn" type="submit" disabled={!displayName}>Join Hunt →</button>
               </form>
 
@@ -2286,7 +2293,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">I can't join my team</div>
-                        <div className="faq-a">Tap your team, then choose your assigned name from the list for that team. If your name is missing, contact the Dictator. Captains still enter their 6-digit PIN.</div>
+                        <div className="faq-a">Tap your team, then choose your assigned name from the list for that team. If your name is missing, contact the Dictator.{!gameStatus?.testMode && " Captains still enter their 6-digit PIN."}</div>
                       </div>
                       <div className="faq-item">
                         <div className="faq-q">Our submission keeps getting FAIL</div>

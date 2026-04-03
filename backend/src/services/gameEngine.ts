@@ -482,7 +482,7 @@ export class GameEngine {
   }
 
   getGameStatus() {
-    return { status: this.gameStatus, name: this.seed.game.name, timezone: this.seed.game.timezone };
+    return { status: this.gameStatus, name: this.seed.game.name, timezone: this.seed.game.timezone, testMode: this.variant === "test" };
   }
 
   async setGameStatus(status: GameStatus) {

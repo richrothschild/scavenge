@@ -389,6 +389,18 @@ button:disabled {
   max-width: 340px;
 }
 
+.test-mode-banner {
+  background: rgba(251,191,36,0.15);
+  border: 1px solid rgba(251,191,36,0.4);
+  color: #fbbf24;
+  border-radius: 8px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+  margin: 0.25rem 0 0.5rem;
+}
+
 .assignment-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
