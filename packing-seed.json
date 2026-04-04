@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "id": "pk-01",
+    "text": "Warm jacket",
+    "category": "clothing",
+    "sortOrder": 1,
+    "note": "It can get cold — we will spend time at the fire pits at the hotel."
+  },
+  {
+    "id": "pk-02",
+    "text": "Walking shoes",
+    "category": "clothing",
+    "sortOrder": 2,
+    "note": "We will walk 1–3 miles per day."
+  },
+  {
+    "id": "pk-03",
+    "text": "DO NOT bring golf clubs",
+    "category": "gear",
+    "sortOrder": 3,
+    "note": "We are playing indoors at two simulators — they have both left and right-handed clubs."
+  },
+  {
+    "id": "pk-04",
+    "text": "Exercise clothes",
+    "category": "clothing",
+    "sortOrder": 4,
+    "note": "Optional — if you want to use the small exercise room at the hotel or go for a run."
+  }
+]
