@@ -2618,6 +2618,44 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 {bulkTeamMsg && <pre className="bulk-result">{bulkTeamMsg}</pre>}
               </div>
 
+              {/* ── Packing List Management ──────────────────── */}
+              <h3>What to Bring <button style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }} onClick={() => { void fetchPackingItems(); }}>Refresh</button></h3>
+              <div className="panel admin-events-form">
+                <div className="admin-events-fields">
+                  <input placeholder="Item text *" value={pkText} onChange={(e) => setPkText(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <input placeholder="Note (optional)" value={pkNote} onChange={(e) => setPkNote(e.target.value)} style={{ gridColumn: "1 / -1" }} />
+                  <select value={pkCategory} onChange={(e) => setPkCategory(e.target.value)}>
+                    <option value="clothing">👕 Clothing</option>
+                    <option value="gear">🎒 Gear &amp; Accessories</option>
+                    <option value="documents">📄 Documents &amp; IDs</option>
+                    <option value="health">💊 Health &amp; Toiletries</option>
+                    <option value="other">📦 Other</option>
+                  </select>
+                  <input type="number" placeholder="Sort order" value={pkSortOrder} onChange={(e) => setPkSortOrder(e.target.value)} style={{ width: "80px" }} />
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
+                  <button onClick={() => { void savePkItem(); }}>{pkEditId ? "Update Item" : "Add Item"}</button>
+                  {pkEditId && <button onClick={clearPkForm}>Cancel</button>}
+                </div>
+                {pkMsg && <p style={{ marginTop: "0.4rem", color: pkMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{pkMsg}</p>}
+              </div>
+              {packingItems.length === 0 && <p style={{ color: "#94a3b8" }}>No packing items yet. Add one above.</p>}
+              <ul className="list" style={{ marginTop: "0.5rem" }}>
+                {packingItems.map((item) => (
+                  <li key={item.id} className="ev-list-item">
+                    <div className="ev-list-info">
+                      <strong>{item.text}</strong>
+                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.category}</span>
+                      {item.note && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.note}</span>}
+                    </div>
+                    <div className="ev-list-actions">
+                      <button onClick={() => startEditPkItem(item)}>Edit</button>
+                      <button className="btn-danger" onClick={() => { if (window.confirm(`Remove "${item.text}"?`)) void deletePkItem(item.id); }}>Del</button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+
               {/* ── Events Management ────────────────────────── */}
               <h3>Events</h3>
               <div className="panel admin-events-form">
@@ -2736,44 +2774,6 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 </div>
                 {bulkEvMsg && <p className="bulk-result" style={{ color: bulkEvMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{bulkEvMsg}</p>}
               </div>
-
-              {/* ── Packing List Management ──────────────────── */}
-              <h3>What to Bring <button style={{ fontSize: "0.75rem", marginLeft: "0.5rem" }} onClick={() => { void fetchPackingItems(); }}>Refresh</button></h3>
-              <div className="panel admin-events-form">
-                <div className="admin-events-fields">
-                  <input placeholder="Item text *" value={pkText} onChange={(e) => setPkText(e.target.value)} style={{ gridColumn: "1 / -1" }} />
-                  <input placeholder="Note (optional)" value={pkNote} onChange={(e) => setPkNote(e.target.value)} style={{ gridColumn: "1 / -1" }} />
-                  <select value={pkCategory} onChange={(e) => setPkCategory(e.target.value)}>
-                    <option value="clothing">👕 Clothing</option>
-                    <option value="gear">🎒 Gear &amp; Accessories</option>
-                    <option value="documents">📄 Documents &amp; IDs</option>
-                    <option value="health">💊 Health &amp; Toiletries</option>
-                    <option value="other">📦 Other</option>
-                  </select>
-                  <input type="number" placeholder="Sort order" value={pkSortOrder} onChange={(e) => setPkSortOrder(e.target.value)} style={{ width: "80px" }} />
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem" }}>
-                  <button onClick={() => { void savePkItem(); }}>{pkEditId ? "Update Item" : "Add Item"}</button>
-                  {pkEditId && <button onClick={clearPkForm}>Cancel</button>}
-                </div>
-                {pkMsg && <p style={{ marginTop: "0.4rem", color: pkMsg.startsWith("✓") ? "#4ade80" : "#f87171" }}>{pkMsg}</p>}
-              </div>
-              {packingItems.length === 0 && <p style={{ color: "#94a3b8" }}>No packing items yet. Add one above.</p>}
-              <ul className="list" style={{ marginTop: "0.5rem" }}>
-                {packingItems.map((item) => (
-                  <li key={item.id} className="ev-list-item">
-                    <div className="ev-list-info">
-                      <strong>{item.text}</strong>
-                      <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.category}</span>
-                      {item.note && <span style={{ color: "#94a3b8", fontSize: "0.85rem" }}> · {item.note}</span>}
-                    </div>
-                    <div className="ev-list-actions">
-                      <button onClick={() => startEditPkItem(item)}>Edit</button>
-                      <button className="btn-danger" onClick={() => { if (window.confirm(`Remove "${item.text}"?`)) void deletePkItem(item.id); }}>Del</button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
 
               <h3>Clue Files</h3>
               <form onSubmit={uploadAdminCluesFile} className="panel">
