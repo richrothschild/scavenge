@@ -191,6 +191,10 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [deductTeamId, setDeductTeamId] = useState("");
   const [deductAmount, setDeductAmount] = useState("10");
   const [deductReason, setDeductReason] = useState("Screenshot violation");
+  const [pointsAdjustMode, setPointsAdjustMode] = useState<"award" | "deduct">("award");
+  const [awardTeamId, setAwardTeamId] = useState("");
+  const [awardAmount, setAwardAmount] = useState("10");
+  const [awardReason, setAwardReason] = useState("");
   const [reopenTeamId, setReopenTeamId] = useState("");
   const [reopenClueIndex, setReopenClueIndex] = useState("0");
   const [reopenDurationSeconds, setReopenDurationSeconds] = useState("300");
@@ -1742,6 +1746,23 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     await Promise.all([fetchLeaderboard(), fetchAuditLogs()]);
   };
 
+  const awardPoints = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!awardTeamId.trim()) { setStatusMessage("Team ID is required"); return; }
+    const amount = Number(awardAmount);
+    if (!Number.isFinite(amount) || amount <= 0) { setStatusMessage("Amount must be a positive number"); return; }
+    if (!awardReason.trim()) { setStatusMessage("Reason is required"); return; }
+    const response = await fetch(`${apiBase}/admin/team/${awardTeamId.trim()}/award`, {
+      method: "POST",
+      headers: buildAdminMutationHeaders("team-award"),
+      body: JSON.stringify({ amount, reason: awardReason.trim() })
+    });
+    if (!response.ok) { setStatusMessage(await parseError(response, "Award failed")); return; }
+    setStatusMessage(`✓ Awarded ${amount} points to ${awardTeamId.trim()}`);
+    setAwardReason("");
+    await Promise.all([fetchLeaderboard(), fetchAuditLogs()]);
+  };
+
   const reopenClue = async (event: FormEvent) => {
     event.preventDefault();
     if (!reopenTeamId.trim()) {
@@ -3011,13 +3032,48 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
             ))}
           </ul>
 
-          <h3>Deduct Points</h3>
-          <form onSubmit={deductPoints} className="panel">
-            <input value={deductTeamId} onChange={(event) => setDeductTeamId(event.target.value)} placeholder="Team id (e.g., spades)" />
-            <input value={deductAmount} onChange={(event) => setDeductAmount(event.target.value)} placeholder="Amount" />
-            <input value={deductReason} onChange={(event) => setDeductReason(event.target.value)} placeholder="Reason" />
-            <button type="submit">Apply Deduction</button>
-          </form>
+          <h3>Award / Deduct Points</h3>
+          <div className="panel points-adjust-panel">
+            <div className="points-adjust-toggle">
+              <button
+                type="button"
+                className={pointsAdjustMode === "award" ? "points-toggle-btn active-award" : "points-toggle-btn"}
+                onClick={() => setPointsAdjustMode("award")}
+              >+ Award</button>
+              <button
+                type="button"
+                className={pointsAdjustMode === "deduct" ? "points-toggle-btn active-deduct" : "points-toggle-btn"}
+                onClick={() => setPointsAdjustMode("deduct")}
+              >− Deduct</button>
+            </div>
+            {pointsAdjustMode === "award" ? (
+              <form onSubmit={awardPoints} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
+                <select value={awardTeamId} onChange={(e) => setAwardTeamId(e.target.value)}>
+                  <option value="">Select team…</option>
+                  <option value="spades">♠ Spades</option>
+                  <option value="hearts">♥ Hearts</option>
+                  <option value="diamonds">♦ Diamonds</option>
+                  <option value="clubs">♣ Clubs</option>
+                </select>
+                <input type="number" min="1" value={awardAmount} onChange={(e) => setAwardAmount(e.target.value)} placeholder="Points to award" />
+                <input value={awardReason} onChange={(e) => setAwardReason(e.target.value)} placeholder="Reason (required)" />
+                <button type="submit" className="btn-award">Award Points</button>
+              </form>
+            ) : (
+              <form onSubmit={deductPoints} style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.75rem" }}>
+                <select value={deductTeamId} onChange={(event) => setDeductTeamId(event.target.value)}>
+                  <option value="">Select team…</option>
+                  <option value="spades">♠ Spades</option>
+                  <option value="hearts">♥ Hearts</option>
+                  <option value="diamonds">♦ Diamonds</option>
+                  <option value="clubs">♣ Clubs</option>
+                </select>
+                <input type="number" min="1" value={deductAmount} onChange={(event) => setDeductAmount(event.target.value)} placeholder="Points to deduct" />
+                <input value={deductReason} onChange={(event) => setDeductReason(event.target.value)} placeholder="Reason (required)" />
+                <button type="submit" className="btn-danger">Deduct Points</button>
+              </form>
+            )}
+          </div>
 
           <h3>Reopen Clue</h3>
           <form onSubmit={reopenClue} className="panel">
