@@ -957,25 +957,40 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return path.join(dir, "events-store.json");
   })();
 
-  const loadEventsFromDisk = (): EventRecord[] => {
-    try {
-      if (fs.existsSync(eventsFilePath)) {
-        const raw = JSON.parse(fs.readFileSync(eventsFilePath, "utf-8"));
-        if (Array.isArray(raw)) return raw as EventRecord[];
-      }
-    } catch {
-      // ignore parse errors; start fresh
-    }
-    return [];
-  };
-
   const saveEventsToDisk = (store: EventRecord[]): void => {
     try {
       fs.writeFileSync(eventsFilePath, JSON.stringify(store, null, 2), "utf-8");
     } catch {
-      // best-effort; log but don't crash
       console.warn("[events] Could not write events-store.json:", eventsFilePath);
     }
+  };
+
+  const loadEventsFromDisk = (): EventRecord[] => {
+    // 1. Try runtime store (persists while container lives, or across redeploys if /data volume is mounted)
+    try {
+      if (fs.existsSync(eventsFilePath)) {
+        const raw = JSON.parse(fs.readFileSync(eventsFilePath, "utf-8"));
+        if (Array.isArray(raw) && raw.length > 0) return raw as EventRecord[];
+      }
+    } catch { /* ignore */ }
+    // 2. Fall back to seed file baked into the image
+    const seedCandidates = [
+      path.resolve(process.cwd(), "events-seed.json"),
+      path.resolve(process.cwd(), "..", "events-seed.json"),
+    ];
+    for (const p of seedCandidates) {
+      try {
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
+          if (Array.isArray(raw) && raw.length > 0) {
+            console.log("[events] Loaded", raw.length, "events from seed file:", p);
+            saveEventsToDisk(raw as EventRecord[]);
+            return raw as EventRecord[];
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    return [];
   };
 
   const eventsStore: EventRecord[] = loadEventsFromDisk();
@@ -1155,22 +1170,40 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return path.join(dir, "packing-store.json");
   })();
 
-  const loadPackingFromDisk = (): PackingItem[] => {
-    try {
-      if (fs.existsSync(packingFilePath)) {
-        const raw = JSON.parse(fs.readFileSync(packingFilePath, "utf-8"));
-        if (Array.isArray(raw)) return raw as PackingItem[];
-      }
-    } catch { /* ignore */ }
-    return [];
-  };
-
   const savePackingToDisk = (store: PackingItem[]): void => {
     try {
       fs.writeFileSync(packingFilePath, JSON.stringify(store, null, 2), "utf-8");
     } catch {
       console.warn("[packing] Could not write packing-store.json:", packingFilePath);
     }
+  };
+
+  const loadPackingFromDisk = (): PackingItem[] => {
+    // 1. Try runtime store
+    try {
+      if (fs.existsSync(packingFilePath)) {
+        const raw = JSON.parse(fs.readFileSync(packingFilePath, "utf-8"));
+        if (Array.isArray(raw) && raw.length > 0) return raw as PackingItem[];
+      }
+    } catch { /* ignore */ }
+    // 2. Fall back to seed file baked into the image
+    const seedCandidates = [
+      path.resolve(process.cwd(), "packing-seed.json"),
+      path.resolve(process.cwd(), "..", "packing-seed.json"),
+    ];
+    for (const p of seedCandidates) {
+      try {
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, "utf-8"));
+          if (Array.isArray(raw) && raw.length > 0) {
+            console.log("[packing] Loaded", raw.length, "items from seed file:", p);
+            savePackingToDisk(raw as PackingItem[]);
+            return raw as PackingItem[];
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    return [];
   };
 
   const packingStore: PackingItem[] = loadPackingFromDisk();

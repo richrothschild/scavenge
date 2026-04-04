@@ -1583,7 +1583,7 @@ button:disabled {
 
 .pub-loading, .pub-empty {
   text-align: center;
-  color: #64748b;
+  color: #94a3b8;
   padding: 3rem 1rem;
 }
 
@@ -1765,8 +1765,14 @@ button:disabled {
 /* ── Events Page ────────────────────────────────────────────── */
 .pub-empty-events {
   text-align: center;
-  color: #64748b;
+  color: #94a3b8;
   padding: 3rem 1rem;
+  font-size: 1rem;
+}
+
+.pub-empty-events p {
+  color: #94a3b8;
+  margin: 0.4rem 0;
 }
 
 /* ── Packing Page ─────────────────────────────────────────── */
