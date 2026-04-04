@@ -164,17 +164,19 @@ export default function StandingsPage() {
           const color = SUIT_COLORS[suit] ?? "#94a3b8";
           const icon  = SUIT_ICONS[suit] ?? "★";
           return (
-            <div key={team.teamId} className="standings-card" style={{ borderColor: color }}>
+            <div key={team.teamId} className="standings-card" style={{ borderLeftColor: color }}>
               <div className="standings-rank" style={{ color }}>#{idx + 1}</div>
               <div className="standings-suit" style={{ color }}>{icon}</div>
-              <div className="standings-name">{team.teamName}</div>
-              <div className="standings-score" style={{ color }}>{team.scoreTotal} pts</div>
-              <div className="standings-clue">Clue {team.currentClueIndex + 1}</div>
-              <div className="standings-roster">
-                <span className="standings-captain">👑 {team.captain}</span>
-                {team.members.filter((m) => m !== team.captain).map((m) => (
-                  <span key={m} className="standings-member">{m}</span>
-                ))}
+              <div className="standings-body">
+                <div className="standings-name">{team.teamName}</div>
+                <div className="standings-score" style={{ color }}>{team.scoreTotal.toLocaleString()} pts</div>
+                <div className="standings-clue">Clue {team.currentClueIndex + 1}</div>
+                <div className="standings-roster">
+                  <span className="standings-captain">👑 {team.captain}</span>
+                  {team.members.filter((m) => m !== team.captain).map((m) => (
+                    <span key={m} className="standings-member">{m}</span>
+                  ))}
+                </div>
               </div>
             </div>
           );
