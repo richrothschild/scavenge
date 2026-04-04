@@ -286,5 +286,21 @@
     "secondPlaceBonus": 0,
     "thirdPlaceBonus": 0,
     "results": []
+  },
+  {
+    "id": "ev-sun-02",
+    "title": "Checkout",
+    "description": "",
+    "date": "2026-04-12",
+    "time": "11:00",
+    "location": "Hotel Zephyr",
+    "category": "other",
+    "sortOrder": 19,
+    "basePoints": 0,
+    "weight": 1,
+    "firstPlaceBonus": 0,
+    "secondPlaceBonus": 0,
+    "thirdPlaceBonus": 0,
+    "results": []
   }
 ]
