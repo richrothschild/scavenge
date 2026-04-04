@@ -90,8 +90,10 @@ export default function PackingPage() {
             {grouped[cat].map((item) => (
               <li key={item.id} className="packing-item">
                 <span className="packing-item-check">☐</span>
-                <span className="packing-item-text">{item.text}</span>
-                {item.note && <span className="packing-item-note">{item.note}</span>}
+                <div className="packing-item-body">
+                  <span className="packing-item-text">{item.text}</span>
+                  {item.note && <span className="packing-item-note">{item.note}</span>}
+                </div>
               </li>
             ))}
           </ul>

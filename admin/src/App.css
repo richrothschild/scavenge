@@ -1811,7 +1811,7 @@ button:disabled {
 
 .packing-item {
   display: flex;
-  align-items: baseline;
+  align-items: flex-start;
   gap: 0.6rem;
   background: #1e293b;
   border-radius: 8px;
@@ -1822,19 +1822,28 @@ button:disabled {
   font-size: 1.1rem;
   color: #475569;
   flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.packing-item-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
 }
 
 .packing-item-text {
   font-size: 0.95rem;
   font-weight: 500;
   color: #e2e8f0;
-  flex: 1;
+  word-wrap: break-word;
 }
 
 .packing-item-note {
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: #64748b;
-  flex-shrink: 0;
+  word-wrap: break-word;
 }
 
 .events-day-group {
