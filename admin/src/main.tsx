@@ -8,6 +8,7 @@ import StandingsPage from './StandingsPage.tsx'
 import EventsPage from './EventsPage.tsx'
 import PackingPage from './PackingPage.tsx'
 import PubCrawlPage from './PubCrawlPage.tsx'
+import GameNightPage from './GameNightPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -19,6 +20,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/events" element={<EventsPage />} />
         <Route path="/packing" element={<PackingPage />} />
         <Route path="/pubcrawl" element={<PubCrawlPage />} />
+        <Route path="/gamenight" element={<GameNightPage />} />
         <Route path="/admin" element={<App forceMode="admin" />} />
         <Route path="/admin/*" element={<App forceMode="admin" />} />
         {/* Legacy: bare domain without path goes to Home */}

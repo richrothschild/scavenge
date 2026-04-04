@@ -41,6 +41,12 @@ export default function HomePage() {
           <span className="home-card-title">Pub Crawl</span>
           <span className="home-card-desc">Routes · Rules · Challenges</span>
         </button>
+
+        <button className="home-card gamenight-card" onClick={() => navigate("/gamenight")}>
+          <span className="home-card-icon">🎮</span>
+          <span className="home-card-title">Game Night</span>
+          <span className="home-card-desc">Schedule · Rules · Team Matchups</span>
+        </button>
       </nav>
 
       <footer className="home-footer">
