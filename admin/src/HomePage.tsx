@@ -12,16 +12,10 @@ export default function HomePage() {
       </header>
 
       <nav className="home-nav">
-        <button className="home-card hunt-card" onClick={() => navigate("/hunt")}>
-          <span className="home-card-icon">🗺️</span>
-          <span className="home-card-title">Scavenger Hunt</span>
-          <span className="home-card-desc">Join your team · Submit clues · Track progress</span>
-        </button>
-
-        <button className="home-card standings-card" onClick={() => navigate("/standings")}>
-          <span className="home-card-icon">🏆</span>
-          <span className="home-card-title">Teams &amp; Leaderboard</span>
-          <span className="home-card-desc">Live scores · Team rosters · Standings</span>
+        <button className="home-card packing-card" onClick={() => navigate("/packing")}>
+          <span className="home-card-icon">🎒</span>
+          <span className="home-card-title">What to Bring</span>
+          <span className="home-card-desc">Packing list · Gear · Essentials</span>
         </button>
 
         <button className="home-card events-card" onClick={() => navigate("/events")}>
@@ -30,10 +24,16 @@ export default function HomePage() {
           <span className="home-card-desc">Schedule · Locations · Timing</span>
         </button>
 
-        <button className="home-card packing-card" onClick={() => navigate("/packing")}>
-          <span className="home-card-icon">🎒</span>
-          <span className="home-card-title">What to Bring</span>
-          <span className="home-card-desc">Packing list · Gear · Essentials</span>
+        <button className="home-card standings-card" onClick={() => navigate("/standings")}>
+          <span className="home-card-icon">🏆</span>
+          <span className="home-card-title">Teams &amp; Leaderboard</span>
+          <span className="home-card-desc">Live scores · Team rosters · Standings</span>
+        </button>
+
+        <button className="home-card sportsbetting-card" onClick={() => navigate("/sportsbetting")}>
+          <span className="home-card-icon">🎰</span>
+          <span className="home-card-title">Sports Betting</span>
+          <span className="home-card-desc">NBA · MLB · Masters · Pick winners</span>
         </button>
 
         <button className="home-card pubcrawl-card" onClick={() => navigate("/pubcrawl")}>
@@ -42,16 +42,22 @@ export default function HomePage() {
           <span className="home-card-desc">Routes · Rules · Challenges</span>
         </button>
 
+        <button className="home-card golf-card" onClick={() => navigate("/events")}>
+          <span className="home-card-icon">⛳</span>
+          <span className="home-card-title">Golf</span>
+          <span className="home-card-desc">Studio Golf · Salesforce Tower · Fri Apr 10</span>
+        </button>
+
         <button className="home-card gamenight-card" onClick={() => navigate("/gamenight")}>
           <span className="home-card-icon">🎮</span>
           <span className="home-card-title">Game Night</span>
           <span className="home-card-desc">Schedule · Rules · Team Matchups</span>
         </button>
 
-        <button className="home-card sportsbetting-card" onClick={() => navigate("/sportsbetting")}>
-          <span className="home-card-icon">🎰</span>
-          <span className="home-card-title">Sports Betting</span>
-          <span className="home-card-desc">NBA · MLB · Masters · Pick winners</span>
+        <button className="home-card hunt-card" onClick={() => navigate("/hunt")}>
+          <span className="home-card-icon">🗺️</span>
+          <span className="home-card-title">Scavenger Hunt</span>
+          <span className="home-card-desc">Join your team · Submit clues · Track progress</span>
         </button>
       </nav>
 
