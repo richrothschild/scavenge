@@ -47,6 +47,12 @@ export default function HomePage() {
           <span className="home-card-title">Game Night</span>
           <span className="home-card-desc">Schedule · Rules · Team Matchups</span>
         </button>
+
+        <button className="home-card sportsbetting-card" onClick={() => navigate("/sportsbetting")}>
+          <span className="home-card-icon">🎰</span>
+          <span className="home-card-title">Sports Betting</span>
+          <span className="home-card-desc">NBA · MLB · Masters · Pick winners</span>
+        </button>
       </nav>
 
       <footer className="home-footer">

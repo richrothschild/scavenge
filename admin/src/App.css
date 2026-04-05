@@ -1563,6 +1563,7 @@ button:disabled {
 .packing-card { border-left: 4px solid #a78bfa; }
 .pubcrawl-card { border-left: 4px solid #f97316; }
 .gamenight-card { border-left: 4px solid #22d3ee; }
+.sportsbetting-card { border-left: 4px solid #f59e0b; }
 
 .home-footer {
   margin-top: 3rem;
@@ -2600,3 +2601,255 @@ button:disabled {
   color: #475569;
   white-space: nowrap;
 }
+
+/* ─── Sports Betting Page ─────────────────────────────────── */
+.sb-day-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem;
+  background: #0f172a;
+  border-radius: 8px;
+}
+.sb-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 0.2rem;
+}
+.sb-day-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #cbd5e1;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.sb-lock-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  border-radius: 10px;
+}
+.sb-lock-badge.sb-locked { background: #1e293b; color: #64748b; }
+.sb-lock-badge.sb-open   { background: #1e3a1e; color: #4ade80; }
+
+.sb-game-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0;
+}
+.sb-game-row.locked { opacity: 0.85; }
+.sb-game-sport {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #475569;
+  width: 2.5rem;
+  flex-shrink: 0;
+  text-transform: uppercase;
+}
+.sb-game-picks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+.sb-pick-label {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 6px;
+  border: 1px solid #334155;
+  background: #1e293b;
+  color: #94a3b8;
+  font-size: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.1s;
+}
+.sb-pick-label input[type="radio"] { display: none; }
+.sb-pick-label.selected  { border-color: #3b82f6; color: #e2e8f0; background: #1e3a5f; }
+.sb-pick-label.correct   { border-color: #4ade80 !important; background: #1a3a1a !important; color: #4ade80 !important; }
+.sb-pick-label.wrong     { border-color: #f87171 !important; background: #3a1a1a !important; color: #f87171 !important; }
+.sb-pick-label.is-result { border-style: dashed; }
+.sb-pick-label:not([disabled]):hover { border-color: #64748b; }
+
+.sb-verdict { font-size: 0.8rem; margin-left: 0.1rem; }
+.sb-verdict.sb-wrong { color: #f87171; }
+.sb-result-marker { font-size: 0.68rem; color: #64748b; white-space: nowrap; }
+
+.sb-masters-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+  margin: 0 0 0.4rem;
+}
+.sb-masters-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sb-tiebreaker-row {
+  border-top: 1px solid #1e293b;
+  padding-top: 0.4rem;
+  margin-top: 0.2rem;
+}
+.sb-masters-label {
+  font-size: 0.82rem;
+  color: #94a3b8;
+  min-width: 7rem;
+  flex-shrink: 0;
+}
+.sb-text-input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  flex: 1;
+  min-width: 0;
+}
+.sb-text-input:focus { outline: none; border-color: #3b82f6; }
+.sb-text-input:disabled { opacity: 0.5; cursor: not-allowed; }
+.sb-number-input { max-width: 6rem; flex: 0 0 auto; }
+.sb-rory-actual { font-size: 0.8rem; color: #94a3b8; white-space: nowrap; }
+
+.sb-save-btn {
+  margin-top: 0.5rem;
+  padding: 0.55rem 1.25rem;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  align-self: flex-start;
+}
+.sb-save-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.sb-save-msg { font-size: 0.82rem; margin: 0.25rem 0 0; }
+.sb-save-msg.success { color: #4ade80; }
+.sb-save-msg.error   { color: #f87171; }
+
+.sb-points-summary {
+  background: #0f172a;
+  border-radius: 8px;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.25rem;
+}
+.sb-points-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.sb-pts-val { color: #4ade80; font-weight: 700; }
+.sb-points-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 700;
+  font-size: 1rem;
+  color: #f1f5f9;
+  border-top: 1px solid #1e293b;
+  padding-top: 0.4rem;
+  margin-top: 0.1rem;
+}
+
+/* Admin panel */
+.sb-admin-panel {
+  margin-top: 0.5rem;
+  border: 1px dashed #334155;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.sb-admin-toggle {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #0f172a;
+  border: none;
+  color: #64748b;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+.sb-admin-toggle:hover { color: #94a3b8; }
+.sb-admin-form {
+  padding: 0.75rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: #0a0f1a;
+}
+.sb-admin-token-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.sb-admin-token-row label { font-size: 0.82rem; color: #64748b; white-space: nowrap; }
+.sb-admin-result-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.sb-admin-result-label {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  min-width: 9rem;
+  flex-shrink: 0;
+}
+.sb-clear-btn {
+  background: none;
+  border: 1px solid #334155;
+  color: #64748b;
+  border-radius: 4px;
+  padding: 0.2rem 0.4rem;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+/* Rules tab */
+.sb-schedule-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+.sb-schedule-row {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: #cbd5e1;
+  align-items: center;
+}
+.sb-sched-sport {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #475569;
+  width: 2.5rem;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* Standings on rules tab */
+.sb-standings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #1e293b;
+  font-size: 0.9rem;
+  flex-wrap: wrap;
+}
+.sb-standings-row:last-child { border-bottom: none; }
+.sb-standings-rank { color: #475569; font-size: 0.8rem; width: 1.5rem; flex-shrink: 0; }
+.sb-standings-detail { color: #64748b; font-size: 0.78rem; flex: 1; }
+.sb-standings-pts { font-weight: 700; color: #f1f5f9; margin-left: auto; white-space: nowrap; }

@@ -1263,5 +1263,150 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.status(204).send();
   });
 
+  // ── Sports Betting ────────────────────────────────────────────────
+  // Lock times (PDT = UTC-7): Thu Apr 9 6:30 PM, Fri Apr 10 12:00 PM, Sat Apr 11 8:00 AM
+  const BETTING_THU_LOCK  = new Date("2026-04-10T01:30:00Z");
+  const BETTING_FRI_LOCK  = new Date("2026-04-10T19:00:00Z");
+  const BETTING_SAT_LOCK  = new Date("2026-04-11T15:00:00Z");
+
+  const BETTING_TEAM_IDS = ["spades", "hearts", "diamonds", "clubs"] as const;
+  type BettingTeamId = typeof BETTING_TEAM_IDS[number];
+
+  const BETTING_FIELD_LOCKS: Record<string, Date> = {
+    thu_nba_1:  BETTING_THU_LOCK,
+    fri_nba_1:  BETTING_FRI_LOCK,
+    fri_nba_2:  BETTING_FRI_LOCK,
+    fri_mlb_1:  BETTING_FRI_LOCK,
+    fri_mlb_2:  BETTING_FRI_LOCK,
+    masters_1:  BETTING_FRI_LOCK,
+    masters_2:  BETTING_FRI_LOCK,
+    masters_3:  BETTING_FRI_LOCK,
+    rory_score: BETTING_FRI_LOCK,
+    sat_mlb_1:  BETTING_SAT_LOCK,
+    sat_mlb_2:  BETTING_SAT_LOCK,
+  };
+
+  type BettingTeamPicks = Partial<Record<string, string>> & { updatedAt?: string };
+
+  type BettingResults = {
+    thu_nba_1?: string;
+    fri_nba_1?: string;
+    fri_nba_2?: string;
+    fri_mlb_1?: string;
+    fri_mlb_2?: string;
+    sat_mlb_1?: string;
+    sat_mlb_2?: string;
+    masters_total_spades?: number;
+    masters_total_hearts?: number;
+    masters_total_diamonds?: number;
+    masters_total_clubs?: number;
+    rory_actual?: number;
+  };
+
+  type BettingStore = {
+    picks: Partial<Record<BettingTeamId, BettingTeamPicks>>;
+    results: BettingResults;
+  };
+
+  const bettingFilePath = (() => {
+    const railwayVolume = "/data";
+    const dir = fs.existsSync(railwayVolume) ? railwayVolume : path.resolve(process.cwd());
+    return path.join(dir, "betting-store.json");
+  })();
+
+  const saveBettingToDisk = (store: BettingStore): void => {
+    try {
+      fs.writeFileSync(bettingFilePath, JSON.stringify(store, null, 2), "utf-8");
+    } catch {
+      console.warn("[betting] Could not write betting-store.json");
+    }
+  };
+
+  const loadBettingFromDisk = (): BettingStore => {
+    try {
+      if (fs.existsSync(bettingFilePath)) {
+        const raw = JSON.parse(fs.readFileSync(bettingFilePath, "utf-8"));
+        if (raw && typeof raw === "object" && raw.picks) return raw as BettingStore;
+      }
+    } catch { /* ignore */ }
+    return { picks: {}, results: {} };
+  };
+
+  const bettingStore: BettingStore = loadBettingFromDisk();
+
+  router.get("/sportsbetting", (_req, res) => {
+    const now = new Date();
+    return res.json({
+      picks: bettingStore.picks,
+      results: bettingStore.results,
+      lockStatus: {
+        thursday: now >= BETTING_THU_LOCK,
+        friday:   now >= BETTING_FRI_LOCK,
+        saturday: now >= BETTING_SAT_LOCK,
+      },
+      lockTimes: {
+        thursday: BETTING_THU_LOCK.toISOString(),
+        friday:   BETTING_FRI_LOCK.toISOString(),
+        saturday: BETTING_SAT_LOCK.toISOString(),
+      },
+    });
+  });
+
+  router.post("/sportsbetting/picks/:teamId", (req, res) => {
+    const teamId = req.params.teamId as BettingTeamId;
+    if (!(BETTING_TEAM_IDS as readonly string[]).includes(teamId)) {
+      return res.status(400).json({ error: "Invalid team." });
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const now = new Date();
+    const existing: BettingTeamPicks = { ...(bettingStore.picks[teamId] ?? {}) };
+    const updated: BettingTeamPicks = { ...existing };
+    const rejected: string[] = [];
+
+    for (const [field, lockTime] of Object.entries(BETTING_FIELD_LOCKS)) {
+      if (body[field] !== undefined) {
+        if (now >= lockTime) {
+          rejected.push(field);
+        } else {
+          const val = String(body[field] ?? "").trim();
+          if (val) {
+            updated[field] = val;
+          } else {
+            delete updated[field];
+          }
+        }
+      }
+    }
+
+    updated.updatedAt = now.toISOString();
+    bettingStore.picks[teamId] = updated;
+    saveBettingToDisk(bettingStore);
+    return res.json({ picks: updated, rejected });
+  });
+
+  router.put("/admin/sportsbetting/results", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) return res.status(401).json({ error: "Admin token required." });
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const results: BettingResults = { ...bettingStore.results };
+
+    for (const f of ["thu_nba_1","fri_nba_1","fri_nba_2","fri_mlb_1","fri_mlb_2","sat_mlb_1","sat_mlb_2"] as const) {
+      if (body[f] !== undefined) {
+        const v = String(body[f] ?? "").trim();
+        if (v) results[f] = v; else delete results[f];
+      }
+    }
+    for (const f of ["masters_total_spades","masters_total_hearts","masters_total_diamonds","masters_total_clubs","rory_actual"] as const) {
+      if (body[f] !== undefined) {
+        const n = Number(body[f]);
+        if (Number.isFinite(n)) results[f] = n; else delete results[f];
+      }
+    }
+
+    bettingStore.results = results;
+    saveBettingToDisk(bettingStore);
+    return res.json(results);
+  });
+
   return router;
 };
