@@ -22,7 +22,9 @@ const TOPICS = [
   "Hollywood movies of the 1960s and 1970s",
   "American TV shows of the 1960s and 1970s",
   "Famous TV commercials and advertising slogans of the 1960s and 1970s",
-  "Popular music and rock bands of the 1960s and 1970s",
+  "Rock and roll of the 1960s and 1970s (British Invasion, classic rock, guitar legends)",
+  "Pop music hits and artists of the 1960s and 1970s",
+  "The Grateful Dead — history, members, songs, tours, and culture",
   "News and world events as seen from America in the 1960s and 1970s",
   "American fads, toys, and pop culture trends of the 1960s and 1970s",
 ];
