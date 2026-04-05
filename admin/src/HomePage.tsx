@@ -54,16 +54,16 @@ export default function HomePage() {
           <span className="home-card-desc">Schedule · Rules · Team Matchups</span>
         </button>
 
-        <button className="home-card trivia-card" onClick={() => navigate("/trivia")}>
-          <span className="home-card-icon">🧠</span>
-          <span className="home-card-title">Trivia</span>
-          <span className="home-card-desc">Saturday Night · Hosted by Doug</span>
-        </button>
-
         <button className="home-card hunt-card" onClick={() => navigate("/hunt")}>
           <span className="home-card-icon">🗺️</span>
           <span className="home-card-title">Scavenger Hunt</span>
           <span className="home-card-desc">Join your team · Submit clues · Track progress</span>
+        </button>
+
+        <button className="home-card trivia-card" onClick={() => navigate("/trivia")}>
+          <span className="home-card-icon">🧠</span>
+          <span className="home-card-title">Trivia</span>
+          <span className="home-card-desc">Saturday Night · Hosted by Doug</span>
         </button>
       </nav>
 
