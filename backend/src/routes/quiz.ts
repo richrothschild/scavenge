@@ -49,11 +49,13 @@ Rules:
 - Each question has exactly 4 options
 - The "answer" field must exactly match one of the 4 options
 - Spread questions across the provided topics — do not cluster too many in one area
-- Questions should be fun, nostalgic, and suitable for men who grew up in the 60s and 70s
-- Mix easy, medium, and hard difficulty
+- These questions are for hardcore 60s/70s enthusiasts who KNOW this era deeply — make them genuinely hard
+- Aim for the level of: guest musicians who sat in with the Grateful Dead, backup quarterbacks on obscure AFL teams, Nixon's chief of staff, the voice actor behind a specific cartoon character, the B-side of a #1 hit, which episode a famous TV catchphrase first appeared, a specific at-bat statistic for a role player
+- Avoid asking about the most famous, obvious facts (do NOT ask who played guitar for the Beatles, who won the 1969 World Series, or who was president in 1963 — too easy)
+- Favor deep cuts: supporting characters, guest appearances, album B-sides, obscure roster players, minor political figures, specific ad slogans, episode details, cartoon voice casts
+- Wrong options must be highly plausible — other real names from the same era and domain, not obviously wrong
 - No duplicate questions
-- Keep questions concise and unambiguous
-- Wrong options should be plausible but clearly wrong to someone who lived through the era`;
+- Keep questions concise and unambiguous`;
 
 async function generateQuiz(
   apiKey: string,
@@ -61,7 +63,7 @@ async function generateQuiz(
   topics: string[]
 ): Promise<QuizQuestion[]> {
   const topicList = topics.map((t, i) => `${i + 1}. ${t}`).join("\n");
-  const userPrompt = `Generate 25 pop culture trivia questions about American life in the 1960s and 1970s. Draw from these topics (spread questions across them):\n\n${topicList}\n\nReturn exactly 25 questions in the required JSON format.`;
+  const userPrompt = `Generate 25 DIFFICULT pop culture trivia questions about American life in the 1960s and 1970s, aimed at true experts of the era. Draw from these topics (spread questions across them):\n\n${topicList}\n\nThink: Speed Racer character names, guest musicians who sat in with the Grateful Dead, Nixon's chief of staff, obscure role players in MLB/NFL/NBA, cartoon voice actors, specific ad slogans and jingle lyrics, B-sides of hit records, supporting TV characters, obscure movie sequel details. If a casual fan would know it immediately, it's too easy — go deeper.\n\nReturn exactly 25 questions in the required JSON format.`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
