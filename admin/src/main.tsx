@@ -13,6 +13,7 @@ import GolfPage from './GolfPage.tsx'
 import TriviaPage from './TriviaPage.tsx'
 import SportsBettingPage from './SportsBettingPage.tsx'
 import Top100Page from './Top100Page.tsx'
+import PopCultureQuizPage from './PopCultureQuizPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/trivia" element={<TriviaPage />} />
         <Route path="/sportsbetting" element={<SportsBettingPage />} />
         <Route path="/top100" element={<Top100Page />} />
+        <Route path="/quiz" element={<PopCultureQuizPage />} />
         <Route path="/admin" element={<App forceMode="admin" />} />
         <Route path="/admin/*" element={<App forceMode="admin" />} />
         {/* Legacy: bare domain without path goes to Home */}
