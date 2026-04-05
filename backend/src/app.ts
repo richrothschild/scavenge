@@ -6,6 +6,7 @@ import { AIJudgeProvider } from "./services/aiJudge";
 import { gameRouter } from "./routes/game";
 import { healthRouter } from "./routes/health";
 import { createTop100Router } from "./routes/top100";
+import { createQuizRouter } from "./routes/quiz";
 
 export type AuthRateLimitConfig = {
   joinWindowMs: number;
@@ -159,6 +160,7 @@ export const createApp = (
   app.use("/api", healthRouter);
   app.use("/api", gameRouter(gameEngine, aiJudge));
   app.use("/api", createTop100Router(openaiApiKey, openaiModel));
+  app.use("/api", createQuizRouter(openaiApiKey, openaiModel));
 
   // Global error handler — catches JSON parse errors and any next(err) calls
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
