@@ -1264,24 +1264,25 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
   });
 
   // ── Sports Betting ────────────────────────────────────────────────
-  // Lock times (PDT = UTC-7): Thu Apr 9 6:30 PM, Fri Apr 10 12:00 PM, Sat Apr 11 8:00 AM
-  const BETTING_THU_LOCK  = new Date("2026-04-10T01:30:00Z");
-  const BETTING_FRI_LOCK  = new Date("2026-04-10T19:00:00Z");
-  const BETTING_SAT_LOCK  = new Date("2026-04-11T15:00:00Z");
+  // Lock times (PDT = UTC-7)
+  const BETTING_THU_LOCK          = new Date("2026-04-10T01:30:00Z"); // Thu Apr 9  6:30 PM PDT
+  const BETTING_FRI_GAMES_LOCK    = new Date("2026-04-10T19:00:00Z"); // Fri Apr 10 12:00 PM PDT (NBA/MLB)
+  const BETTING_FRI_MASTERS_LOCK  = new Date("2026-04-11T05:00:00Z"); // Fri Apr 10 10:00 PM PDT (Masters/Rory)
+  const BETTING_SAT_LOCK          = new Date("2026-04-11T15:00:00Z"); // Sat Apr 11  8:00 AM PDT
 
   const BETTING_TEAM_IDS = ["spades", "hearts", "diamonds", "clubs"] as const;
   type BettingTeamId = typeof BETTING_TEAM_IDS[number];
 
   const BETTING_FIELD_LOCKS: Record<string, Date> = {
     thu_nba_1:  BETTING_THU_LOCK,
-    fri_nba_1:  BETTING_FRI_LOCK,
-    fri_nba_2:  BETTING_FRI_LOCK,
-    fri_mlb_1:  BETTING_FRI_LOCK,
-    fri_mlb_2:  BETTING_FRI_LOCK,
-    masters_1:  BETTING_FRI_LOCK,
-    masters_2:  BETTING_FRI_LOCK,
-    masters_3:  BETTING_FRI_LOCK,
-    rory_score: BETTING_FRI_LOCK,
+    fri_nba_1:  BETTING_FRI_GAMES_LOCK,
+    fri_nba_2:  BETTING_FRI_GAMES_LOCK,
+    fri_mlb_1:  BETTING_FRI_GAMES_LOCK,
+    fri_mlb_2:  BETTING_FRI_GAMES_LOCK,
+    masters_1:  BETTING_FRI_MASTERS_LOCK,
+    masters_2:  BETTING_FRI_MASTERS_LOCK,
+    masters_3:  BETTING_FRI_MASTERS_LOCK,
+    rory_score: BETTING_FRI_MASTERS_LOCK,
     sat_mlb_1:  BETTING_SAT_LOCK,
     sat_mlb_2:  BETTING_SAT_LOCK,
   };
@@ -1340,14 +1341,16 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
       picks: bettingStore.picks,
       results: bettingStore.results,
       lockStatus: {
-        thursday: now >= BETTING_THU_LOCK,
-        friday:   now >= BETTING_FRI_LOCK,
-        saturday: now >= BETTING_SAT_LOCK,
+        thursday:   now >= BETTING_THU_LOCK,
+        fridayGames:   now >= BETTING_FRI_GAMES_LOCK,
+        fridayMasters: now >= BETTING_FRI_MASTERS_LOCK,
+        saturday:   now >= BETTING_SAT_LOCK,
       },
       lockTimes: {
-        thursday: BETTING_THU_LOCK.toISOString(),
-        friday:   BETTING_FRI_LOCK.toISOString(),
-        saturday: BETTING_SAT_LOCK.toISOString(),
+        thursday:   BETTING_THU_LOCK.toISOString(),
+        fridayGames:   BETTING_FRI_GAMES_LOCK.toISOString(),
+        fridayMasters: BETTING_FRI_MASTERS_LOCK.toISOString(),
+        saturday:   BETTING_SAT_LOCK.toISOString(),
       },
     });
   });

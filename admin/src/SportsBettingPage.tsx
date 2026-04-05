@@ -8,9 +8,10 @@ const apiBase =
     : "http://localhost:3001/api");
 
 // Lock times (PDT = UTC-7)
-const THU_LOCK = new Date("2026-04-10T01:30:00Z"); // Thu Apr 9  6:30 PM PDT
-const FRI_LOCK = new Date("2026-04-10T19:00:00Z"); // Fri Apr 10 12:00 PM PDT
-const SAT_LOCK = new Date("2026-04-11T15:00:00Z"); // Sat Apr 11 8:00 AM PDT
+const THU_LOCK         = new Date("2026-04-10T01:30:00Z"); // Thu Apr 9  6:30 PM PDT
+const FRI_GAMES_LOCK   = new Date("2026-04-10T19:00:00Z"); // Fri Apr 10 12:00 PM PDT (NBA/MLB)
+const FRI_MASTERS_LOCK = new Date("2026-04-11T05:00:00Z"); // Fri Apr 10 10:00 PM PDT (Masters/Rory)
+const SAT_LOCK         = new Date("2026-04-11T15:00:00Z"); // Sat Apr 11  8:00 AM PDT
 
 type TabId = "rules" | "spades" | "hearts" | "diamonds" | "clubs";
 type TeamId = "spades" | "hearts" | "diamonds" | "clubs";
@@ -29,10 +30,10 @@ const TEAM_COLORS: Record<TeamId, string> = {
 
 const GAMES = [
   { id: "thu_nba_1" as const, sport: "NBA", t1: "Lakers",    t2: "Warriors", lock: THU_LOCK, day: "thursday" as const },
-  { id: "fri_nba_1" as const, sport: "NBA", t1: "Warriors",  t2: "Kings",    lock: FRI_LOCK, day: "friday"   as const },
-  { id: "fri_nba_2" as const, sport: "NBA", t1: "Minnesota", t2: "Houston",  lock: FRI_LOCK, day: "friday"   as const },
-  { id: "fri_mlb_1" as const, sport: "MLB", t1: "Hou",       t2: "Sea",      lock: FRI_LOCK, day: "friday"   as const },
-  { id: "fri_mlb_2" as const, sport: "MLB", t1: "Min",       t2: "Tor",      lock: FRI_LOCK, day: "friday"   as const },
+  { id: "fri_nba_1" as const, sport: "NBA", t1: "Warriors",  t2: "Kings",    lock: FRI_GAMES_LOCK, day: "friday"   as const },
+  { id: "fri_nba_2" as const, sport: "NBA", t1: "Minnesota", t2: "Houston",  lock: FRI_GAMES_LOCK, day: "friday"   as const },
+  { id: "fri_mlb_1" as const, sport: "MLB", t1: "Hou",       t2: "Sea",      lock: FRI_GAMES_LOCK, day: "friday"   as const },
+  { id: "fri_mlb_2" as const, sport: "MLB", t1: "Min",       t2: "Tor",      lock: FRI_GAMES_LOCK, day: "friday"   as const },
   { id: "sat_mlb_1" as const, sport: "MLB", t1: "Ath",       t2: "NYM",      lock: SAT_LOCK, day: "saturday" as const },
   { id: "sat_mlb_2" as const, sport: "MLB", t1: "SF",        t2: "Bal",      lock: SAT_LOCK, day: "saturday" as const },
 ] as const;
@@ -169,9 +170,10 @@ interface TeamTabProps {
 
 function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveMsg }: TeamTabProps) {
   const results = data.results;
-  const thuLocked = now >= THU_LOCK;
-  const friLocked = now >= FRI_LOCK;
-  const satLocked = now >= SAT_LOCK;
+  const thuLocked      = now >= THU_LOCK;
+  const friGamesLocked  = now >= FRI_GAMES_LOCK;
+  const friMastersLocked = now >= FRI_MASTERS_LOCK;
+  const satLocked      = now >= SAT_LOCK;
   const color = TEAM_COLORS[teamId];
 
   const mastersRanks = calcMastersRanks(results);
@@ -185,7 +187,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
   const roryActual = results.rory_actual ?? null;
   const roryDiff = roryGuess !== null && roryActual !== null ? Math.abs(roryGuess - roryActual) : null;
 
-  const allLocked = thuLocked && friLocked && satLocked;
+  const allLocked = thuLocked && friGamesLocked && friMastersLocked && satLocked;
   const hasPicks = GAMES.some(g => !!picks[g.id]) || picks.masters_1 || picks.masters_2 || picks.masters_3 || picks.rory_score;
 
   return (
@@ -216,7 +218,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
       <div className="sb-day-section">
         <div className="sb-day-header">
           <span className="sb-day-label">Friday, Apr 10</span>
-          <LockBadge locked={friLocked} lockTime={FRI_LOCK} />
+          <LockBadge locked={friGamesLocked} lockTime={FRI_GAMES_LOCK} />
         </div>
         {GAMES.filter(g => g.day === "friday").map(g => (
           <GameRow
@@ -224,7 +226,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
             game={g}
             pick={picks[g.id]}
             result={results[g.id]}
-            locked={friLocked}
+            locked={friGamesLocked}
             onChange={(val) => onPickChange(g.id, val)}
           />
         ))}
@@ -234,7 +236,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
       <div className="sb-day-section">
         <div className="sb-day-header">
           <span className="sb-day-label">Masters — Saturday Round</span>
-          <LockBadge locked={friLocked} lockTime={FRI_LOCK} />
+          <LockBadge locked={friMastersLocked} lockTime={FRI_MASTERS_LOCK} />
         </div>
         <p className="sb-masters-hint">Pick 3 golfers. Their combined Saturday score determines Masters points.</p>
         {(["masters_1", "masters_2", "masters_3"] as const).map((field, i) => (
@@ -245,7 +247,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
               type="text"
               placeholder="Golfer name"
               value={picks[field] ?? ""}
-              disabled={friLocked}
+              disabled={friMastersLocked}
               onChange={(e) => onPickChange(field, e.target.value)}
             />
           </div>
@@ -257,7 +259,7 @@ function TeamTab({ teamId, picks, data, now, onPickChange, onSave, saving, saveM
             type="number"
             placeholder="e.g. 68"
             value={picks.rory_score ?? ""}
-            disabled={friLocked}
+            disabled={friMastersLocked}
             onChange={(e) => onPickChange("rory_score", e.target.value)}
           />
           {roryActual !== null && (
@@ -492,12 +494,15 @@ function RulesTab({ data, onAdminSave, adminSaving, adminMsg }: {
           <div className="sb-schedule-row"><span className="sb-sched-sport">NBA</span><span>Lakers vs Warriors</span></div>
         </div>
 
-        <p className="gn-section-heading">Friday, Apr 10 — Locks 12:00 PM PT</p>
+        <p className="gn-section-heading">Friday, Apr 10 — NBA &amp; MLB lock 12:00 PM PT</p>
         <div className="sb-schedule-group">
           <div className="sb-schedule-row"><span className="sb-sched-sport">NBA</span><span>Warriors vs Kings</span></div>
           <div className="sb-schedule-row"><span className="sb-sched-sport">NBA</span><span>Minnesota vs Houston</span></div>
           <div className="sb-schedule-row"><span className="sb-sched-sport">MLB</span><span>Houston vs Seattle</span></div>
           <div className="sb-schedule-row"><span className="sb-sched-sport">MLB</span><span>Minnesota vs Toronto</span></div>
+        </div>
+        <p className="gn-section-heading">Friday, Apr 10 — Masters &amp; Tiebreaker lock 10:00 PM PT</p>
+        <div className="sb-schedule-group">
           <div className="sb-schedule-row"><span className="sb-sched-sport">⛳</span><span>Masters — pick 3 golfers + Rory tiebreaker</span></div>
         </div>
 
