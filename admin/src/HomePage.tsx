@@ -6,7 +6,7 @@ export default function HomePage() {
   return (
     <div className="home-page">
       <header className="home-header">
-        <div className="home-logo">🏙️</div>
+        <div className="home-logo">🌉</div>
         <h1>Boyz Weekend 2026</h1>
         <p className="home-subtitle">San Francisco · April 9–12, 2026</p>
       </header>
