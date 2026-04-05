@@ -82,13 +82,65 @@ Other rules:
 - No duplicate questions
 - Questions must be factually accurate — do not invent statistics or events`;
 
-async function generateQuiz(
+const STOP_WORDS = new Set([
+  "the","a","an","of","in","on","at","to","for","with","by","as","was","is","are",
+  "were","had","has","have","he","she","it","his","her","its","who","what","which",
+  "that","this","these","those","and","or","but","not","be","been","from","did",
+  "do","does","how","when","where","their","they","them","we","us","you","your"
+]);
+
+function answerLeaksIntoQuestion(question: string, answer: string): boolean {
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  const answerWords = normalize(answer).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  const questionWords = new Set(normalize(question));
+  return answerWords.some((w) => questionWords.has(w));
+}
+
+function parseAndFilter(raw: string, seenQuestions: Set<string>): QuizQuestion[] {
+  let parsed: { questions?: unknown[] };
+  try {
+    parsed = JSON.parse(raw) as { questions?: unknown[] };
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(parsed.questions)) return [];
+
+  const results: QuizQuestion[] = [];
+  for (let i = 0; i < parsed.questions.length; i++) {
+    const q = parsed.questions[i] as Record<string, unknown>;
+    const question = typeof q.question === "string" ? q.question : "";
+    const answer = typeof q.answer === "string" ? q.answer : "";
+    const options = Array.isArray(q.options)
+      ? (q.options as unknown[]).filter((o): o is string => typeof o === "string").slice(0, 4)
+      : [];
+
+    if (!question || !answer || options.length !== 4) continue;
+    if (seenQuestions.has(question)) continue;
+    if (answerLeaksIntoQuestion(question, answer)) {
+      console.warn(`[quiz] Dropped answer-leak: "${question.slice(0, 60)}..." answer="${answer}"`);
+      continue;
+    }
+
+    seenQuestions.add(question);
+    results.push({
+      id: 0, // renumbered after collection
+      question,
+      options,
+      answer,
+      topic: typeof q.topic === "string" ? q.topic : "General",
+    });
+  }
+  return results;
+}
+
+async function fetchBatch(
   apiKey: string,
   model: string,
-  topics: string[]
-): Promise<QuizQuestion[]> {
-  const topicList = topics.map((t, i) => `${i + 1}. ${t}`).join("\n");
-  const userPrompt = `Generate 25 EXPERT-LEVEL pop culture trivia questions about American life in the 1960s and 1970s. These are for people who lived through the era and know it deeply. Draw from these topics:\n\n${topicList}\n\nExamples of the RIGHT difficulty level:\n- "Which pianist sat in with the Grateful Dead at the 1970 Fillmore East run?" (not "Who was the Grateful Dead's lead guitarist?")\n- "What was the name of Speed Racer's car?" (not "Who voiced Speed Racer?")\n- "Who was Nixon's first chief of staff?" (not "Who was Nixon's vice president?")\n- "What was the B-side of the Beatles' 'Hey Jude'?" (not "What year did the Beatles break up?")\n- "Which Dodger pitcher threw the only perfect game in World Series history?" (not "Who won the 1969 World Series?")\n\nRemember: zero words from the correct answer may appear in the question text. Verify this for every single question before including it.\n\nReturn exactly 25 questions in the required JSON format.`;
+  topicList: string,
+  needed: number
+): Promise<string> {
+  const userPrompt = `Generate ${needed} EXPERT-LEVEL pop culture trivia questions about American life in the 1960s and 1970s. These are for people who lived through the era and know it deeply. Draw from these topics:\n\n${topicList}\n\nExamples of the RIGHT difficulty level:\n- "Which pianist sat in with the Grateful Dead at the 1970 Fillmore East run?" (not "Who was the Grateful Dead's lead guitarist?")\n- "What was the name of Speed Racer's car?" (not "Who voiced Speed Racer?")\n- "Who was Nixon's first chief of staff?" (not "Who was Nixon's vice president?")\n- "What was the B-side of the Beatles' 'Hey Jude'?" (not "What year did the Beatles break up?")\n- "Which Dodger pitcher threw the only perfect game in World Series history?" (not "Who won the 1969 World Series?")\n\nRemember: zero words from the correct answer may appear in the question text.\n\nReturn exactly ${needed} questions in the required JSON format.`;
 
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -103,8 +155,8 @@ async function generateQuiz(
         { role: "user", content: userPrompt },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 4000,
-      temperature: 0.8,
+      max_tokens: Math.min(16000, needed * 200),
+      temperature: 0.9,
     }),
   });
 
@@ -114,46 +166,35 @@ async function generateQuiz(
   }
 
   const data = await response.json() as { choices: Array<{ message: { content: string } }> };
-  const raw = data.choices[0]?.message?.content ?? "{}";
-  const parsed = JSON.parse(raw) as { questions?: unknown[] };
+  return data.choices[0]?.message?.content ?? "{}";
+}
 
-  if (!Array.isArray(parsed.questions)) {
-    throw new Error("Invalid response format from OpenAI");
+const TARGET = 25;
+const MAX_ATTEMPTS = 4;
+
+async function generateQuiz(
+  apiKey: string,
+  model: string,
+  topics: string[]
+): Promise<QuizQuestion[]> {
+  const topicList = topics.map((t, i) => `${i + 1}. ${t}`).join("\n");
+  const collected: QuizQuestion[] = [];
+  const seenQuestions = new Set<string>();
+
+  for (let attempt = 0; attempt < MAX_ATTEMPTS && collected.length < TARGET; attempt++) {
+    const needed = TARGET - collected.length;
+    // Ask for a few extras to absorb expected filter drops
+    const requested = Math.min(TARGET, needed + Math.ceil(needed * 0.3));
+    console.log(`[quiz] Attempt ${attempt + 1}: need ${needed}, requesting ${requested}`);
+
+    const raw = await fetchBatch(apiKey, model, topicList, requested);
+    const batch = parseAndFilter(raw, seenQuestions);
+    collected.push(...batch.slice(0, needed));
+    console.log(`[quiz] After attempt ${attempt + 1}: ${collected.length}/${TARGET} collected`);
   }
 
-  const STOP_WORDS = new Set([
-    "the","a","an","of","in","on","at","to","for","with","by","as","was","is","are",
-    "were","had","has","have","he","she","it","his","her","its","who","what","which",
-    "that","this","these","those","and","or","but","not","be","been","from","did",
-    "do","does","how","when","where","their","they","them","we","us","you","your"
-  ]);
-
-  function answerLeaksIntoQuestion(question: string, answer: string): boolean {
-    const normalize = (s: string) =>
-      s.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
-    const answerWords = normalize(answer).filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-    const questionWords = new Set(normalize(question));
-    return answerWords.some((w) => questionWords.has(w));
-  }
-
-  const mapped = (parsed.questions as Record<string, unknown>[]).map((q, i) => ({
-    id: typeof q.id === "number" ? q.id : i + 1,
-    question: typeof q.question === "string" ? q.question : "",
-    options: Array.isArray(q.options)
-      ? (q.options as unknown[]).filter((o): o is string => typeof o === "string").slice(0, 4)
-      : [],
-    answer: typeof q.answer === "string" ? q.answer : "",
-    topic: typeof q.topic === "string" ? q.topic : "General",
-  })).filter((q) => {
-    if (!q.question || q.options.length !== 4 || !q.answer) return false;
-    if (answerLeaksIntoQuestion(q.question, q.answer)) {
-      console.warn(`[quiz] Dropped answer-leak question: "${q.question.slice(0, 60)}..." answer="${q.answer}"`);
-      return false;
-    }
-    return true;
-  });
-
-  return mapped;
+  // Renumber sequentially
+  return collected.slice(0, TARGET).map((q, i) => ({ ...q, id: i + 1 }));
 }
 
 export const createQuizRouter = (openaiApiKey: string | undefined, openaiModel: string) => {
