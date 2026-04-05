@@ -5,6 +5,7 @@ import { GameEngine } from "./services/gameEngine";
 import { AIJudgeProvider } from "./services/aiJudge";
 import { gameRouter } from "./routes/game";
 import { healthRouter } from "./routes/health";
+import { createTop100Router } from "./routes/top100";
 
 export type AuthRateLimitConfig = {
   joinWindowMs: number;
@@ -144,7 +145,9 @@ export const createApp = (
   corsOrigins: string[],
   gameEngine: GameEngine,
   aiJudge: AIJudgeProvider,
-  authRateLimitConfig: AuthRateLimitConfig = defaultAuthRateLimitConfig
+  authRateLimitConfig: AuthRateLimitConfig = defaultAuthRateLimitConfig,
+  openaiApiKey?: string,
+  openaiModel: string = "gpt-4o"
 ) => {
   const app = express();
   app.set("trust proxy", 1);
@@ -155,6 +158,7 @@ export const createApp = (
 
   app.use("/api", healthRouter);
   app.use("/api", gameRouter(gameEngine, aiJudge));
+  app.use("/api", createTop100Router(openaiApiKey, openaiModel));
 
   // Global error handler — catches JSON parse errors and any next(err) calls
   app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {

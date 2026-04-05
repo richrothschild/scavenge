@@ -1623,6 +1623,308 @@ button:disabled {
   margin: 0;
 }
 .sportsbetting-card { border-left: 4px solid #f59e0b; }
+.top100-card { border-left: 4px solid #c084fc; }
+
+/* ─── Top 100 Page ───────────────────────────────────────── */
+.top100-content {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.top100-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.top100-label {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.top100-input {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  color: #f1f5f9;
+  font-size: 1rem;
+  padding: 0.65rem 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.top100-input:focus { border-color: #c084fc; }
+.top100-input::placeholder { color: #475569; }
+.top100-input:disabled { opacity: 0.5; }
+
+.top100-count-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.top100-slider {
+  width: 100%;
+  accent-color: #c084fc;
+  cursor: pointer;
+}
+.top100-slider:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.top100-count-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: #475569;
+}
+
+.top100-generate-btn {
+  background: #c084fc;
+  color: #0f172a;
+  border: none;
+  border-radius: 8px;
+  padding: 0.7rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.15s;
+  align-self: flex-start;
+}
+.top100-generate-btn:hover:not(:disabled) { background: #d8b4fe; }
+.top100-generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.top100-error {
+  color: #f87171;
+  background: #1e1015;
+  border: 1px solid #7f1d1d;
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  font-size: 0.9rem;
+}
+
+.top100-loading {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  color: #94a3b8;
+}
+
+.top100-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #334155;
+  border-top-color: #c084fc;
+  border-radius: 50%;
+  animation: top100-spin 0.8s linear infinite;
+  margin: 0 auto 1rem;
+}
+
+@keyframes top100-spin {
+  to { transform: rotate(360deg); }
+}
+
+.top100-loading-sub {
+  font-size: 0.8rem;
+  color: #475569;
+  margin-top: 0.25rem;
+}
+
+/* Results */
+.top100-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.top100-results-header {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.top100-results-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  margin: 0;
+}
+.top100-results-title em {
+  color: #c084fc;
+  font-style: normal;
+}
+
+.top100-tabs {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.top100-tab {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0.4rem 0.9rem;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.top100-tab:hover { background: #263451; color: #e2e8f0; }
+.top100-tab-active {
+  background: #2e1065;
+  border-color: #c084fc;
+  color: #e9d5ff;
+}
+
+/* Entry cards */
+.top100-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.top100-entry-card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.top100-entry-header {
+  width: 100%;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  flex-wrap: wrap;
+}
+.top100-entry-header:hover { background: #263451; }
+
+.top100-entry-rank {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #c084fc;
+  min-width: 2rem;
+  flex-shrink: 0;
+}
+
+.top100-entry-name {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  flex: 1;
+}
+
+.top100-entry-era {
+  font-size: 0.75rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.top100-entry-chevron {
+  font-size: 0.65rem;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.top100-entry-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0 1rem 1rem;
+  border-top: 1px solid #334155;
+}
+
+.top100-entry-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.top100-field-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.top100-field-value {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+}
+
+.top100-field-link {
+  font-size: 0.85rem;
+  color: #818cf8;
+  word-break: break-all;
+  text-decoration: none;
+}
+.top100-field-link:hover { text-decoration: underline; }
+
+/* Atlas */
+.top100-atlas {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+
+.top100-atlas-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.top100-atlas-h1 {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #e9d5ff;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.top100-atlas-h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #c084fc;
+  margin: 0.75rem 0 0.1rem;
+  border-bottom: 1px solid #334155;
+  padding-bottom: 0.25rem;
+}
+
+.top100-atlas-h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin: 0.5rem 0 0.1rem;
+}
+
+.top100-atlas-p {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.top100-atlas-bullet {
+  font-size: 0.9rem;
+  color: #cbd5e1;
+  line-height: 1.5;
+  margin: 0;
+  padding-left: 0.5rem;
+}
+
+.top100-atlas-spacer {
+  height: 0.3rem;
+}
 
 .home-footer {
   margin-top: 3rem;

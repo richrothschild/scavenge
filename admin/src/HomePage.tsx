@@ -65,6 +65,12 @@ export default function HomePage() {
           <span className="home-card-title">Trivia</span>
           <span className="home-card-desc">Saturday Night · Hosted by Doug</span>
         </button>
+
+        <button className="home-card top100-card" onClick={() => navigate("/top100")}>
+          <span className="home-card-icon">🏅</span>
+          <span className="home-card-title">The Top 100</span>
+          <span className="home-card-desc">Most influential people in any category</span>
+        </button>
       </nav>
 
       <footer className="home-footer">

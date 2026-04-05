@@ -27,7 +27,7 @@ const bootstrap = async () => {
     scanValidateMax: env.RATE_LIMIT_SCAN_VALIDATE_MAX,
     submitWindowMs: env.RATE_LIMIT_SUBMIT_WINDOW_MS,
     submitMax: env.RATE_LIMIT_SUBMIT_MAX
-  });
+  }, env.OPENAI_API_KEY, env.OPENAI_MODEL);
   const server = createServer(app);
 
   const io = createSocketServer(server, corsOrigins, gameEngine);
