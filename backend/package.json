@@ -27,7 +27,6 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
-    "cloudinary": "^2.5.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.7",
