@@ -1564,6 +1564,39 @@ button:disabled {
 .pubcrawl-card { border-left: 4px solid #f97316; }
 .gamenight-card { border-left: 4px solid #22d3ee; }
 .golf-card { border-left: 4px solid #86efac; }
+
+/* ─── Golf Page ───────────────────────────────────────── */
+.golf-scoring-table {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.golf-score-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 8px;
+  background: #0f172a;
+}
+.golf-score-place {
+  font-weight: 700;
+  font-size: 0.9rem;
+  min-width: 3.5rem;
+}
+.golf-score-desc {
+  flex: 1;
+  font-size: 0.85rem;
+  color: #94a3b8;
+}
+.golf-score-pts {
+  font-weight: 700;
+  font-size: 1rem;
+}
+.golf-score-first .golf-score-pts  { color: #fbbf24; }
+.golf-score-second .golf-score-pts { color: #94a3b8; }
+.golf-score-third .golf-score-pts  { color: #b45309; }
+.golf-score-fourth .golf-score-pts { color: #475569; }
 .sportsbetting-card { border-left: 4px solid #f59e0b; }
 
 .home-footer {

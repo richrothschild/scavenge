@@ -9,6 +9,7 @@ import EventsPage from './EventsPage.tsx'
 import PackingPage from './PackingPage.tsx'
 import PubCrawlPage from './PubCrawlPage.tsx'
 import GameNightPage from './GameNightPage.tsx'
+import GolfPage from './GolfPage.tsx'
 import SportsBettingPage from './SportsBettingPage.tsx'
 
 createRoot(document.getElementById('root')!).render(
@@ -22,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
         <Route path="/packing" element={<PackingPage />} />
         <Route path="/pubcrawl" element={<PubCrawlPage />} />
         <Route path="/gamenight" element={<GameNightPage />} />
+        <Route path="/golf" element={<GolfPage />} />
         <Route path="/sportsbetting" element={<SportsBettingPage />} />
         <Route path="/admin" element={<App forceMode="admin" />} />
         <Route path="/admin/*" element={<App forceMode="admin" />} />

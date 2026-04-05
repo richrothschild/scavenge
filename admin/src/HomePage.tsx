@@ -42,7 +42,7 @@ export default function HomePage() {
           <span className="home-card-desc">Routes · Rules · Challenges</span>
         </button>
 
-        <button className="home-card golf-card" onClick={() => navigate("/events")}>
+        <button className="home-card golf-card" onClick={() => navigate("/golf")}>
           <span className="home-card-icon">⛳</span>
           <span className="home-card-title">Golf</span>
           <span className="home-card-desc">Studio Golf · Salesforce Tower · Fri Apr 10</span>
