@@ -1564,6 +1564,7 @@ button:disabled {
 .pubcrawl-card { border-left: 4px solid #f97316; }
 .gamenight-card { border-left: 4px solid #22d3ee; }
 .golf-card { border-left: 4px solid #86efac; }
+.trivia-card { border-left: 4px solid #e879f9; }
 
 /* ─── Golf Page ───────────────────────────────────────── */
 .golf-scoring-table {
@@ -1597,6 +1598,30 @@ button:disabled {
 .golf-score-second .golf-score-pts { color: #94a3b8; }
 .golf-score-third .golf-score-pts  { color: #b45309; }
 .golf-score-fourth .golf-score-pts { color: #475569; }
+
+/* ─── Trivia Page ─────────────────────────────────────── */
+.trivia-quote-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 40vh;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+.trivia-quote-text {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  font-style: italic;
+  line-height: 1.4;
+  margin: 0 0 1rem;
+}
+.trivia-quote-attr {
+  font-size: 1rem;
+  color: #64748b;
+  margin: 0;
+}
 .sportsbetting-card { border-left: 4px solid #f59e0b; }
 
 .home-footer {
