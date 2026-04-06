@@ -70,12 +70,14 @@ export default function HomePage() {
           <span className="home-card-icon">🏅</span>
           <span className="home-card-title">The Top 100</span>
           <span className="home-card-desc">Most influential people in any category</span>
+          <span className="home-card-fun">For fun, not points</span>
         </button>
 
         <button className="home-card quiz-card" onClick={() => navigate("/quiz")}>
           <span className="home-card-icon">📸</span>
           <span className="home-card-title">Pop Culture Quiz</span>
-          <span className="home-card-desc">Name that person · Photo challenge</span>
+          <span className="home-card-desc">60s &amp; 70s pop culture · New questions every game</span>
+          <span className="home-card-fun">For fun, not points</span>
         </button>
       </nav>
 
