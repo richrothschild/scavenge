@@ -152,7 +152,8 @@ export const createTop100Router = (openaiApiKey: string | undefined, openaiModel
       try {
         const parsed = JSON.parse(listRaw) as { entries?: unknown };
         if (Array.isArray(parsed.entries)) {
-          entries = (parsed.entries as Record<string, unknown>[]).map((e, i) => ({
+          const seenNames = new Set<string>();
+          const raw = (parsed.entries as Record<string, unknown>[]).map((e, i) => ({
             rank: typeof e.rank === "number" ? e.rank : i + 1,
             name: typeof e.name === "string" ? e.name : "",
             categoryEra: typeof e.categoryEra === "string" ? e.categoryEra : "",
@@ -161,6 +162,16 @@ export const createTop100Router = (openaiApiKey: string | undefined, openaiModel
             notableDetail: typeof e.notableDetail === "string" ? e.notableDetail : "",
             learnMore: typeof e.learnMore === "string" ? e.learnMore : ""
           }));
+
+          // Deduplicate by normalized name, then re-number ranks sequentially
+          const deduped = raw.filter((e) => {
+            if (!e.name) return false;
+            const key = e.name.trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+            if (seenNames.has(key)) return false;
+            seenNames.add(key);
+            return true;
+          });
+          entries = deduped.map((e, i) => ({ ...e, rank: i + 1 }));
         }
       } catch {
         return res.status(502).json({ error: "Failed to parse list from AI response. Please try again." });
