@@ -49,6 +49,12 @@ type SeedConfigV2Clue = {
   points?: number;
 };
 
+type SeedConfigV2Route = {
+  route_id: string;
+  name?: string;
+  clue_ids: string[];
+};
+
 type SeedConfigV2 = {
   schema_version: string;
   dataset_type?: string;
@@ -64,12 +70,20 @@ type SeedConfigV2 = {
   };
   zones?: SeedConfigV2Zone[];
   clues?: SeedConfigV2Clue[];
+  routes?: SeedConfigV2Route[];
+};
+
+type SeedRoute = {
+  routeId: string;
+  name: string;
+  clues: SeedClue[];
 };
 
 export type SeedConfig = {
   game: { name: string; status: GameStatus; timezone: string };
   teams: SeedTeam[];
   clues: SeedClue[];
+  routes?: SeedRoute[];
 };
 
 export type SeedConfigVariant = "test" | "production";
@@ -107,6 +121,8 @@ type TeamState = {
   completedCount: number;
   skippedCount: number;
   clueStates: TeamProgressState[];
+  routeId: string;
+  routeName: string;
 };
 
 type ParticipantSession = { token: string; teamId: string; displayName: string; role: ParticipantRole };
@@ -280,6 +296,27 @@ const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): Se
     throw new Error("Schema v2 dataset must include at least one clue.");
   }
 
+  // Build per-route clue sequences if routes are defined
+  const clueById = new Map<string, SeedClue>();
+  for (const clue of clues) {
+    clueById.set(clue.qr_public_id, clue); // keyed by sanitized id
+  }
+  // Also index by original clue id for route lookups
+  const clueByOriginalId = new Map<string, SeedClue>();
+  for (const rawClue of (value.clues ?? [])) {
+    const sanitized = sanitizeQrPublicId(rawClue.id || "");
+    const built = clueById.get(sanitized);
+    if (built) clueByOriginalId.set(rawClue.id, built);
+  }
+
+  const routes: SeedRoute[] = (value.routes ?? []).map((r) => ({
+    routeId: r.route_id,
+    name: r.name ?? r.route_id,
+    clues: r.clue_ids
+      .map((id) => clueByOriginalId.get(id))
+      .filter((c): c is SeedClue => !!c)
+  })).filter((r) => r.clues.length > 0);
+
   return {
     game: {
       name: value.metadata?.name?.trim() || fallbackSeed?.game.name || "Scavenge Hunt",
@@ -287,7 +324,8 @@ const convertSeedConfigV2 = (value: SeedConfigV2, fallbackSeed?: SeedConfig): Se
       timezone: value.metadata?.timezone?.trim() || fallbackSeed?.game.timezone || "America/Los_Angeles"
     },
     teams: fallbackTeams,
-    clues
+    clues,
+    routes: routes.length > 0 ? routes : undefined
   };
 };
 
@@ -384,26 +422,49 @@ export const saveSeedConfigVariant = (variant: SeedConfigVariant, seed: SeedConf
   };
 };
 
+const shuffleArray = <T>(arr: T[]): T[] => {
+  const out = [...arr];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+};
+
 const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
-  const clues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
-  const teams: TeamState[] = seed.teams.map((team) => ({
-    teamId: buildTeamId(team.name),
-    teamName: team.name,
-    joinCode: team.join_code,
-    captainName: team.captain_name,
-    captainPin: team.captain_pin,
-    assignedParticipants: [],
-    scoreTotal: 0,
-    currentClueIndex: 0,
-    completedCount: 0,
-    skippedCount: 0,
-    clueStates: clues.map((clue, index) => ({
-      clueId: clue.qr_public_id || `CLUE-${index + 1}`,
-      status: (index === 0 ? "ACTIVE" : "LOCKED") as ClueStatus,
-      scanValidated: false,
-      pointsAwarded: 0
-    }))
-  }));
+  const globalClues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
+  const routes = seed.routes ?? [];
+
+  // Randomly assign one route per team (each team gets a different route when possible)
+  const shuffledRoutes = shuffleArray(routes);
+
+  const teams: TeamState[] = seed.teams.map((team, index) => {
+    const assignedRoute = shuffledRoutes[index % Math.max(shuffledRoutes.length, 1)];
+    const teamClues = assignedRoute?.clues ?? globalClues;
+    const routeId = assignedRoute?.routeId ?? "";
+    const routeName = assignedRoute?.name ?? "";
+
+    return {
+      teamId: buildTeamId(team.name),
+      teamName: team.name,
+      joinCode: team.join_code,
+      captainName: team.captain_name,
+      captainPin: team.captain_pin,
+      assignedParticipants: [],
+      scoreTotal: 0,
+      currentClueIndex: 0,
+      completedCount: 0,
+      skippedCount: 0,
+      routeId,
+      routeName,
+      clueStates: teamClues.map((clue, i) => ({
+        clueId: clue.qr_public_id || `CLUE-${i + 1}`,
+        status: (i === 0 ? "ACTIVE" : "LOCKED") as ClueStatus,
+        scanValidated: false,
+        pointsAwarded: 0
+      }))
+    };
+  });
 
   return {
     gameStatus: seed.game.status,
@@ -418,6 +479,7 @@ const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
 
 export class GameEngine {
   private readonly clues: SeedClue[];
+  private readonly routeClueMap: Map<string, SeedClue[]>;
   private readonly store: RuntimeStateStore<RuntimeSnapshot>;
   private readonly teamsById = new Map<string, TeamState>();
   private readonly teamByJoinCode = new Map<string, TeamState>();
@@ -432,8 +494,14 @@ export class GameEngine {
   private gameStatus: GameStatus;
   private readonly pendingHints = new Map<string, { clueIndex: number; hintText: string }>();
 
+  private teamClues(team: TeamState): SeedClue[] {
+    const route = team.routeId ? this.routeClueMap.get(team.routeId) : undefined;
+    return route ?? this.clues;
+  }
+
   private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot, private readonly variant: SeedConfigVariant = "production") {
     this.clues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
+    this.routeClueMap = new Map((seed.routes ?? []).map((r) => [r.routeId, r.clues]));
     this.store = store;
     this.gameStatus = snapshot.gameStatus;
     this.clueQrOverrides = { ...(snapshot.clueQrOverrides ?? {}) };
@@ -451,6 +519,9 @@ export class GameEngine {
       team.assignedParticipants = Array.isArray(team.assignedParticipants)
         ? team.assignedParticipants.filter((value) => typeof value === "string" && value.trim().length > 0)
         : [];
+      // Backwards compat: old snapshots won't have routeId
+      if (!team.routeId) team.routeId = "";
+      if (!team.routeName) team.routeName = "";
       this.teamsById.set(team.teamId, team);
       const fullJoinCode = team.joinCode.toUpperCase();
       this.teamByJoinCode.set(fullJoinCode, team);
@@ -689,7 +760,8 @@ export class GameEngine {
   getTeamState(teamId: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return null;
-    const currentClue = this.clues[team.currentClueIndex];
+    const clues = this.teamClues(team);
+    const currentClue = clues[team.currentClueIndex];
     const eligibilityStatus = team.completedCount >= MIN_COMPLETED_FOR_ELIGIBILITY ? "ELIGIBLE" : "INELIGIBLE";
     return {
       teamId: team.teamId,
@@ -703,7 +775,9 @@ export class GameEngine {
       clueStates: team.clueStates,
       eligibilityStatus,
       currentClue: currentClue ? toPublicClue(currentClue) : null,
-      clueCount: this.clues.length,
+      clueCount: clues.length,
+      routeId: team.routeId,
+      routeName: team.routeName,
       minCluesForEligibility: MIN_COMPLETED_FOR_ELIGIBILITY,
       pendingHint: this.pendingHints.get(teamId) ?? null
     };
@@ -787,7 +861,7 @@ export class GameEngine {
     if (scanSession.teamId !== teamId) return { error: "Scan session token does not match team." as const };
     if (scanSession.clueIndex !== team.currentClueIndex) return { error: "Scan session token does not match current clue." as const };
     if (scanSession.expiresAt < Date.now()) return { error: "Scan session token expired." as const };
-    const clue = this.clues[team.currentClueIndex];
+    const clue = this.teamClues(team)[team.currentClueIndex];
     if (clue.qr_public_id !== checkpointPublicId) return { error: "Checkpoint public ID does not match current clue." as const };
     team.clueStates[team.currentClueIndex].scanValidated = true;
     scanSession.used = true;
@@ -798,7 +872,7 @@ export class GameEngine {
   getCurrentClue(teamId: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return null;
-    return this.clues[team.currentClueIndex] ?? null;
+    return this.teamClues(team)[team.currentClueIndex] ?? null;
   }
 
   getReviewQueue(limit = 100, offset = 0) {
@@ -1026,7 +1100,7 @@ export class GameEngine {
   async recordAdminHint(teamId: string, clueIndex: number, hintText: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
-    if (clueIndex < 0 || clueIndex >= this.clues.length) return { error: "Invalid clue index." as const };
+    if (clueIndex < 0 || clueIndex >= this.teamClues(team).length) return { error: "Invalid clue index." as const };
     if (!hintText.trim()) return { error: "Hint text is required." as const };
 
     this.auditLogs.push({
@@ -1098,7 +1172,7 @@ export class GameEngine {
   async reopenTeamClue(teamId: string, clueIndex: number, reason: string, durationSeconds?: number) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
-    if (clueIndex < 0 || clueIndex >= this.clues.length) return { error: "Invalid clue index." as const };
+    if (clueIndex < 0 || clueIndex >= this.teamClues(team).length) return { error: "Invalid clue index." as const };
 
     const state = team.clueStates[clueIndex];
     state.status = "ACTIVE";
@@ -1132,7 +1206,7 @@ export class GameEngine {
   ) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
-    const clue = this.clues[team.currentClueIndex];
+    const clue = this.teamClues(team)[team.currentClueIndex];
     const state = team.clueStates[team.currentClueIndex];
     if (state.status !== "ACTIVE") return { error: "Current clue is not active." as const };
     if (clue.requires_scan && !state.scanValidated) return { error: "QR scan validation required before submission." as const };
@@ -1199,7 +1273,7 @@ export class GameEngine {
     }
 
     const state = team.clueStates[reviewItem.clueIndex];
-    const clue = this.clues[reviewItem.clueIndex];
+    const clue = this.teamClues(team)[reviewItem.clueIndex];
     const awarded = pointsAwarded ?? clue.base_points;
 
     submission.verdict = verdict;
@@ -1233,7 +1307,7 @@ export class GameEngine {
   async passCurrentClue(teamId: string) {
     const team = this.teamsById.get(teamId);
     if (!team) return { error: "Team not found." as const };
-    const clue = this.clues[team.currentClueIndex];
+    const clue = this.teamClues(team)[team.currentClueIndex];
     const state = team.clueStates[team.currentClueIndex];
     if (state.status !== "ACTIVE") return { error: "Current clue is not active." as const };
     if (clue.required_flag) return { error: "Required clues cannot be passed." as const };
@@ -1249,7 +1323,7 @@ export class GameEngine {
 
   private advanceToNextClue(team: TeamState) {
     const nextIdx = team.currentClueIndex + 1;
-    if (nextIdx < this.clues.length) {
+    if (nextIdx < this.teamClues(team).length) {
       team.currentClueIndex = nextIdx;
       if (team.clueStates[nextIdx].status === "LOCKED") {
         team.clueStates[nextIdx].status = "ACTIVE";

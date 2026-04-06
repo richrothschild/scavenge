@@ -18,202 +18,263 @@
       "address": "2765 Hyde St, San Francisco, CA"
     },
     "target_duration_minutes": 135,
-    "minimum_clues_to_finish": 7,
-    "transport_modes": [
-      "walk",
-      "waymo",
-      "cable_car"
-    ]
+    "minimum_clues_to_finish": 9,
+    "transport_modes": ["walk", "waymo", "cable_car"]
   },
   "scoring": {
     "default_points": 1,
     "special_points": {
-      "sf-001": 2,
+      "sf-a-001": 2,
       "sf-tiebreak-001": 3
-    },
-    "hint_penalty_model": {
-      "enabled": true,
-      "rules": [
-        {
-          "clue_id": "sf-001",
-          "hint_reduces_points_to": 1
-        }
-      ]
-    },
-    "tie_breaker": {
-      "type": "highest_points_then_fastest_finish",
-      "fallback_clue_id": "sf-tiebreak-001"
     }
   },
   "zones": [
-    {
-      "zone_id": "zone-1",
-      "name": "Pier 39 / Hotel Zephyr",
-      "route_order": 1,
-      "transport_mode": "walk"
-    },
-    {
-      "zone_id": "zone-2",
-      "name": "Aquatic Park",
-      "route_order": 2,
-      "transport_mode": "walk"
-    },
-    {
-      "zone_id": "zone-3",
-      "name": "Hyde Street Pier",
-      "route_order": 3,
-      "transport_mode": "walk"
-    },
-    {
-      "zone_id": "zone-4",
-      "name": "Waymo Segment",
-      "route_order": 4,
-      "transport_mode": "waymo"
-    },
-    {
-      "zone_id": "zone-5",
-      "name": "Lombard Street",
-      "route_order": 5,
-      "transport_mode": "walk"
-    },
-    {
-      "zone_id": "zone-6",
-      "name": "Cable Car to Buena Vista",
-      "route_order": 6,
-      "transport_mode": "cable_car"
-    }
+    { "zone_id": "zone-walk",      "name": "Walking",                  "transport_mode": "walk"      },
+    { "zone_id": "zone-waymo",     "name": "Waymo Segment",            "transport_mode": "waymo"     },
+    { "zone_id": "zone-cable-car", "name": "Cable Car to Buena Vista", "transport_mode": "cable_car" }
   ],
-  "transport_segments": [
+  "routes": [
     {
-      "segment_id": "transport-001",
-      "type": "waymo",
-      "pickup_area": "Hyde Street Pier",
-      "dropoff_area": "1083 Lombard St"
+      "route_id": "route-a",
+      "name": "West — Aquatic Park",
+      "clue_ids": [
+        "sf-a-001", "sf-a-002", "sf-a-003", "sf-a-004", "sf-a-005", "sf-a-006", "sf-a-007",
+        "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
+        "sf-finale-001", "sf-finale-002"
+      ]
     },
     {
-      "segment_id": "transport-002",
-      "type": "cable_car",
-      "line": "Powell-Hyde",
-      "destination": "Hyde & Beach turnaround"
+      "route_id": "route-b",
+      "name": "East — Embarcadero",
+      "clue_ids": [
+        "sf-b-001", "sf-b-002", "sf-b-003", "sf-b-004", "sf-b-005", "sf-b-006", "sf-b-007",
+        "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
+        "sf-finale-001", "sf-finale-002"
+      ]
+    },
+    {
+      "route_id": "route-c",
+      "name": "South — North Beach & Coit Tower",
+      "clue_ids": [
+        "sf-c-001", "sf-c-002", "sf-c-003", "sf-c-004", "sf-c-005", "sf-c-006", "sf-c-007",
+        "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
+        "sf-finale-001", "sf-finale-002"
+      ]
+    },
+    {
+      "route_id": "route-d",
+      "name": "Southwest — Ghirardelli & Fort Mason",
+      "clue_ids": [
+        "sf-d-001", "sf-d-002", "sf-d-003", "sf-d-004", "sf-d-005", "sf-d-006", "sf-d-007",
+        "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
+        "sf-finale-001", "sf-finale-002"
+      ]
     }
   ],
   "clues": [
     {
-      "id": "sf-001",
-      "route_order": 1,
-      "zone_id": "zone-1",
+      "id": "sf-a-001", "route_order": 1, "zone_id": "zone-walk",
       "title": "Gold Rush Ground",
-      "theme": "Gold Rush landfill",
-      "difficulty": "hard",
-      "points": 2
+      "theme": "Gold Rush landfill — the land beneath Pier 39 was created from Gold Rush-era ship debris",
+      "difficulty": "hard", "points": 2
     },
     {
-      "id": "sf-002",
-      "route_order": 2,
-      "zone_id": "zone-1",
+      "id": "sf-a-002", "route_order": 2, "zone_id": "zone-walk",
       "title": "After the Fires",
-      "theme": "1906 rebuild",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "1906 earthquake rebuild — find evidence of post-disaster reconstruction near the waterfront",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-003",
-      "route_order": 3,
-      "zone_id": "zone-2",
+      "id": "sf-a-003", "route_order": 3, "zone_id": "zone-walk",
       "title": "Federal Concrete",
-      "theme": "WPA construction",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "WPA construction at Aquatic Park — the bathhouse and bleachers were built by New Deal labor",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-004",
-      "route_order": 4,
-      "zone_id": "zone-2",
+      "id": "sf-a-004", "route_order": 4, "zone_id": "zone-walk",
       "title": "A Woman With a Ladder",
-      "theme": "Lillie Coit",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Lillie Coit — her connection to SF volunteer firefighters is memorialized near Aquatic Park",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-005",
-      "route_order": 5,
-      "zone_id": "zone-2",
+      "id": "sf-a-005", "route_order": 5, "zone_id": "zone-walk",
       "title": "Before Bridges",
-      "theme": "Rowing history",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Pre-bridge rowing history at Aquatic Park — the bay was the highway before the Golden Gate opened",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-006",
-      "route_order": 6,
-      "zone_id": "zone-3",
+      "id": "sf-a-006", "route_order": 6, "zone_id": "zone-walk",
       "title": "Strategy in Steel",
-      "theme": "WWII Liberty ships",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "WWII Liberty ships at Hyde Street Pier — mass-produced cargo ships that supplied the Allied war effort",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-007",
-      "route_order": 7,
-      "zone_id": "zone-3",
+      "id": "sf-a-007", "route_order": 7, "zone_id": "zone-walk",
       "title": "Silent Pacific",
-      "theme": "WWII submarine",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "USS Pampanito submarine at Hyde Street Pier — Fleet submarine that sank 6 Japanese ships",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-008",
-      "route_order": 8,
-      "zone_id": "zone-4",
+      "id": "sf-b-001", "route_order": 101, "zone_id": "zone-walk",
+      "title": "The Occupation",
+      "theme": "1969 Native American occupation of Alcatraz — 89 activists held the island for 19 months demanding treaty rights",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-002", "route_order": 102, "zone_id": "zone-walk",
+      "title": "The Strike That Shook the Port",
+      "theme": "1934 longshoremen's strike at Pier 23 — a general strike shut down SF for 4 days and changed American labor law",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-003", "route_order": 103, "zone_id": "zone-walk",
+      "title": "Empire of Goods",
+      "theme": "Port of SF industrial history at Pier 7 — once the busiest port on the Pacific Coast",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-004", "route_order": 104, "zone_id": "zone-walk",
+      "title": "The Bridge That Changed Everything",
+      "theme": "Bay Bridge at Rincon Park — opened 1936, six months before the Golden Gate, at twice the cost",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-005", "route_order": 105, "zone_id": "zone-walk",
+      "title": "Before the Bridge",
+      "theme": "Ferry Building — before 1937, 50,000 commuters a day crossed the bay by ferry; the Bridge killed the system overnight",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-006", "route_order": 106, "zone_id": "zone-walk",
+      "title": "The Fountain They Hated",
+      "theme": "Vaillancourt Fountain at Justin Herman Plaza — installed 1971, condemned as an eyesore by critics, beloved by skaters",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-b-007", "route_order": 107, "zone_id": "zone-walk",
+      "title": "The Murals They Tried to Hide",
+      "theme": "Censored WPA murals at Rincon Center — 1941 labor imagery so charged the post office locked the building for months",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-001", "route_order": 201, "zone_id": "zone-walk",
+      "title": "The Pyramid That Wasn't Welcome",
+      "theme": "Transamerica Pyramid — completed 1972; protestors called it an alien intrusion, now it's SF's most recognized silhouette",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-002", "route_order": 202, "zone_id": "zone-walk",
+      "title": "The Trial of the Poem",
+      "theme": "City Lights Bookstore — Allen Ginsberg's Howl was seized here in 1957; the obscenity trial made Beat literature famous",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-003", "route_order": 203, "zone_id": "zone-walk",
+      "title": "The Bar Jack Built",
+      "theme": "Vesuvio Cafe — Jack Kerouac stood up Neal Cassady to drink here the night he was supposed to meet Henry Miller",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-004", "route_order": 204, "zone_id": "zone-walk",
+      "title": "The Saints and the Immigrants",
+      "theme": "Washington Square Park — heart of Italian North Beach; the volunteer fire brigade statue honors the community that rebuilt SF",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-005", "route_order": 205, "zone_id": "zone-walk",
+      "title": "The Marriage That Made Headlines",
+      "theme": "Saints Peter & Paul Church — DiMaggio and Monroe posed here for photos after their 1954 City Hall wedding",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-006", "route_order": 206, "zone_id": "zone-walk",
+      "title": "The Tower She Inspired",
+      "theme": "Coit Tower exterior — built with Lillie Coit's bequest; she left one-third of her estate to beautify SF",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-c-007", "route_order": 207, "zone_id": "zone-walk",
+      "title": "The Art They Tried to Lock Away",
+      "theme": "Coit Tower murals — 1934 WPA frescoes included hammer-and-sickle imagery; the tower was padlocked before opening",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-001", "route_order": 301, "zone_id": "zone-walk",
+      "title": "The Fishermen's Trade",
+      "theme": "Pier 45 — Italian immigrant fishing families built San Francisco's Dungeness crab industry from scratch in the 1880s",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-002", "route_order": 302, "zone_id": "zone-walk",
+      "title": "The Last D-Day Ship",
+      "theme": "SS Jeremiah O'Brien at Pier 45 — one of only two surviving Liberty ships that actually participated in the D-Day invasion",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-003", "route_order": 303, "zone_id": "zone-walk",
+      "title": "The Factory That Became a Destination",
+      "theme": "Ghirardelli Square — converted in 1964, one of America's first adaptive reuse projects; the factory clock tower was preserved",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-004", "route_order": 304, "zone_id": "zone-walk",
+      "title": "The Game They Brought With Them",
+      "theme": "Victorian Park bocce courts — Italian immigrants built permanent bocce courts here in the early 1900s; still active today",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-005", "route_order": 305, "zone_id": "zone-walk",
+      "title": "The Port of Departure",
+      "theme": "Fort Mason Great Meadow — 1.6 million American soldiers shipped out from these piers in WWII, more than any other port",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-006", "route_order": 306, "zone_id": "zone-walk",
+      "title": "When Art Replaced Ammo",
+      "theme": "Fort Mason Center Building B — decommissioned 1972, became one of the first counterculture arts centers in America",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-d-007", "route_order": 307, "zone_id": "zone-walk",
+      "title": "The Oldest Defense",
+      "theme": "Black Point Battery at Fort Mason — Civil War artillery fortification built 1863, the oldest surviving military site on this route",
+      "difficulty": "medium", "points": 1
+    },
+    {
+      "id": "sf-shared-waymo", "route_order": 1001, "zone_id": "zone-waymo",
       "title": "Waymo Transition",
-      "theme": "Autonomous ride",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Call a Waymo from your current location and ride to 1083 Lombard Street. Screenshot your completed ride.",
+      "difficulty": "easy", "points": 1
     },
     {
-      "id": "sf-009",
-      "route_order": 9,
-      "zone_id": "zone-5",
+      "id": "sf-shared-lombard", "route_order": 1002, "zone_id": "zone-walk",
       "title": "Chosen Inconvenience",
-      "theme": "Lombard Street living",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Lombard Street — residents voted to have it made crooked in 1922 to slow runaway cars on the steep grade",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-010",
-      "route_order": 10,
-      "zone_id": "zone-6",
+      "id": "sf-shared-cable", "route_order": 1003, "zone_id": "zone-cable-car",
       "title": "Democracy Saved It",
-      "theme": "Cable car preservation",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Powell-Hyde cable car — a 1947 citizen vote stopped the mayor from scrapping the entire cable car system",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-finale-001",
-      "route_order": 11,
-      "zone_id": "zone-6",
+      "id": "sf-finale-001", "route_order": 1004, "zone_id": "zone-walk",
       "title": "Improvisation and Geography",
-      "theme": "Grateful Dead",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Grateful Dead — formed in the Haight in 1965; their free outdoor concerts reshaped what a rock show could be",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-finale-002",
-      "route_order": 12,
-      "zone_id": "zone-6",
+      "id": "sf-finale-002", "route_order": 1005, "zone_id": "zone-walk",
       "title": "Succession and Shock",
-      "theme": "Dianne Feinstein",
-      "difficulty": "medium",
-      "points": 1
+      "theme": "Dianne Feinstein — discovered Harvey Milk's body and became mayor that day; served 10 years defining modern SF politics",
+      "difficulty": "medium", "points": 1
     },
     {
-      "id": "sf-tiebreak-001",
-      "route_order": 99,
-      "zone_id": "zone-6",
+      "id": "sf-tiebreak-001", "route_order": 9999, "zone_id": "zone-walk",
       "title": "Loma Prieta Synthesis",
-      "theme": "1989 earthquake",
-      "difficulty": "very_hard",
-      "points": 3
+      "theme": "1989 earthquake — the 15-second quake during the World Series killed 63 people and collapsed the Embarcadero Freeway, accidentally beautifying the waterfront",
+      "difficulty": "very_hard", "points": 3
     }
   ]
 }
