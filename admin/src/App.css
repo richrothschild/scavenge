@@ -1926,6 +1926,10 @@ button:disabled {
   height: 0.3rem;
 }
 
+.top100-methodology .top100-atlas-bullet strong {
+  color: #e2e8f0;
+}
+
 /* ─── Pop Culture Quiz Page ──────────────────────────────── */
 .quiz-card { border-left: 4px solid #fb923c; }
 

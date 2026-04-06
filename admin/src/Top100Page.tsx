@@ -102,7 +102,7 @@ export default function Top100Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Top100Result | null>(null);
-  const [activeTab, setActiveTab] = useState<"list" | "atlas">("list");
+  const [activeTab, setActiveTab] = useState<"list" | "atlas" | "methodology">("list");
 
   const handleGenerate = async () => {
     const trimmed = category.trim();
@@ -215,6 +215,12 @@ export default function Top100Page() {
                 >
                   Atlas of Influence
                 </button>
+                <button
+                  className={`top100-tab${activeTab === "methodology" ? " top100-tab-active" : ""}`}
+                  onClick={() => setActiveTab("methodology")}
+                >
+                  Methodology
+                </button>
               </div>
             </div>
 
@@ -229,6 +235,42 @@ export default function Top100Page() {
             {activeTab === "atlas" && (
               <div className="top100-atlas">
                 <AtlasSection text={result.atlas} />
+              </div>
+            )}
+
+            {activeTab === "methodology" && (
+              <div className="top100-atlas top100-methodology">
+                <div className="top100-atlas-body">
+                  <h2 className="top100-atlas-h1">How the Rankings Work</h2>
+                  <p className="top100-atlas-p">The Top 100 is a structured influence ranking, not a popularity contest. Every list is generated fresh by an AI model trained on a broad corpus of historical and cultural knowledge. The rankings reflect a deliberate set of principles designed to produce a balanced, intellectually serious reference document.</p>
+
+                  <h3 className="top100-atlas-h2">What "Influence" Means Here</h3>
+                  <p className="top100-atlas-p">Influence is measured across six dimensions:</p>
+                  <p className="top100-atlas-bullet">• <strong>Foundational importance</strong> — Did this person or entity define the category, or create the conditions that made the field possible?</p>
+                  <p className="top100-atlas-bullet">• <strong>Transformative effect</strong> — Did their contribution change how the field operates, thinks, or produces?</p>
+                  <p className="top100-atlas-bullet">• <strong>Downstream impact</strong> — How many subsequent figures, movements, or works trace a direct line back to this entry?</p>
+                  <p className="top100-atlas-bullet">• <strong>Institutional influence</strong> — Did they create or reshape the organizations, schools, or structures that govern the field?</p>
+                  <p className="top100-atlas-bullet">• <strong>Conceptual reach</strong> — Did their ideas spread beyond the category into adjacent fields or broader culture?</p>
+                  <p className="top100-atlas-bullet">• <strong>Historical durability</strong> — Does their influence persist decades or centuries later, or did it fade quickly?</p>
+
+                  <h3 className="top100-atlas-h2">Ranking Principles</h3>
+                  <p className="top100-atlas-bullet">• Rankings favor depth of influence over breadth of fame. A widely recognized name with shallow impact will rank lower than a lesser-known figure whose work reshaped the field.</p>
+                  <p className="top100-atlas-bullet">• Non-person entities — institutions, movements, texts, technologies, companies, traditions — are included wherever they clearly outrank individual people in their influence on the category.</p>
+                  <p className="top100-atlas-bullet">• The list is balanced across major subfields, eras, regions, and demographics where relevant. No single era or school dominates without historical justification.</p>
+                  <p className="top100-atlas-bullet">• Recency bias is actively resisted. Modern figures are not ranked higher simply because they are more visible in contemporary discourse.</p>
+                  <p className="top100-atlas-bullet">• Each list is generated independently — the same category run twice may produce a different ranking, reflecting the inherent subjectivity in any influence judgment.</p>
+
+                  <h3 className="top100-atlas-h2">What the Atlas of Influence Is</h3>
+                  <p className="top100-atlas-p">The Atlas is a companion document to the ranked list. Where the list answers "who mattered most," the Atlas answers "why" and "how." It traces the chains of influence through the field — who learned from whom, which ideas built on others, and which turning points changed the direction of the category entirely.</p>
+                  <p className="top100-atlas-p">The Atlas is organized into standard sections: an introduction to the category, a survey of major contributors, key ideas and concepts, movements and schools, turning points, chains of influence, important institutions, and lasting legacy. Sections may vary by category.</p>
+                  <p className="top100-atlas-p">The Atlas is written in the style of a compact educational reference guide — structured, readable, and designed to inform rather than entertain.</p>
+
+                  <h3 className="top100-atlas-h2">Limitations</h3>
+                  <p className="top100-atlas-bullet">• AI-generated rankings reflect patterns in the model's training data. Figures with less written about them in English may be underrepresented.</p>
+                  <p className="top100-atlas-bullet">• Very narrow or highly specialized categories may produce thinner results. Broader categories generally yield more balanced and historically grounded lists.</p>
+                  <p className="top100-atlas-bullet">• The rankings are a starting point for discussion, not a definitive verdict. Reasonable people familiar with a field will disagree with specific placements.</p>
+                  <p className="top100-atlas-bullet">• Facts in both documents should be verified against authoritative sources before being cited. The "Learn More" link on each entry points to a reputable reference.</p>
+                </div>
               </div>
             )}
           </div>
