@@ -492,6 +492,7 @@ export class GameEngine {
   private readonly auditLogs: AuditLog[];
   private readonly clueQrOverrides: Record<number, string>;
   private gameStatus: GameStatus;
+  private joinLocked = false;
   private readonly pendingHints = new Map<string, { clueIndex: number; hintText: string }>();
 
   private teamClues(team: TeamState): SeedClue[] {
@@ -553,7 +554,12 @@ export class GameEngine {
   }
 
   getGameStatus() {
-    return { status: this.gameStatus, name: this.seed.game.name, timezone: this.seed.game.timezone, testMode: this.variant === "test" };
+    return { status: this.gameStatus, name: this.seed.game.name, timezone: this.seed.game.timezone, testMode: this.variant === "test", joinLocked: this.joinLocked };
+  }
+
+  toggleJoinLock() {
+    this.joinLocked = !this.joinLocked;
+    return this.getGameStatus();
   }
 
   async setGameStatus(status: GameStatus) {
@@ -574,6 +580,7 @@ export class GameEngine {
   }
 
   joinTeam(joinCode: string, displayName: string, captainPin?: string) {
+    if (this.joinLocked) return { error: "Entry is currently locked. Check back soon." as const };
     const normalizedJoinCode = joinCode.trim().toUpperCase();
     const normalizedDisplayName = displayName.trim();
     const team = this.teamByJoinCode.get(normalizedJoinCode);

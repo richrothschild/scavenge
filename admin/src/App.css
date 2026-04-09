@@ -315,7 +315,21 @@ button:disabled {
   padding: 2rem 1.5rem;
   text-align: center;
   gap: 0.65rem;
+  position: relative;
 }
+.join-home-btn {
+  position: absolute;
+  top: 1rem;
+  left: 1rem;
+  background: transparent;
+  border: 1px solid #334155;
+  color: #94a3b8;
+  padding: 0.3rem 0.75rem;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+.join-home-btn:hover { background: #1e293b; color: #e2e8f0; }
 .join-logo { font-size: 3.5rem; }
 .join-title {
   font-size: 2.8rem;

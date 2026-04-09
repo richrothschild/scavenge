@@ -230,6 +230,17 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     return res.json(next);
   });
 
+  router.post("/admin/join-lock/toggle", (req, res) => {
+    const adminToken = getAdminToken(req.headers as Record<string, unknown>);
+    if (!gameEngine.isAdminTokenValid(adminToken)) {
+      return res.status(401).json({ error: "Admin token required." });
+    }
+    const next = gameEngine.toggleJoinLock();
+    const io = req.app.get("io") as Server | undefined;
+    io?.emit("game:status_changed", next);
+    return res.json(next);
+  });
+
   router.get("/leaderboard", (_req, res) => {
     return res.json({ teams: gameEngine.getLeaderboard() });
   });

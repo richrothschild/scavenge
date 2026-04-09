@@ -85,6 +85,7 @@ type GameStatusPayload = {
   timezone: string;
   start_time?: string;
   testMode?: boolean;
+  joinLocked?: boolean;
 };
 
 type RealtimeEventItem = {
@@ -231,6 +232,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [adminStartTestBusy, setAdminStartTestBusy] = useState(false);
   const [adminStartProdBusy, setAdminStartProdBusy] = useState(false);
   const [adminEndHuntBusy, setAdminEndHuntBusy] = useState(false);
+  const [joinLockBusy, setJoinLockBusy] = useState(false);
   const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
@@ -1299,6 +1301,28 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     }
   };
 
+  const toggleJoinLock = async () => {
+    setJoinLockBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/admin/join-lock/toggle`, {
+        method: "POST",
+        headers: buildAdminMutationHeaders("join-lock"),
+      });
+      if (!response.ok) {
+        setStatusMessage(await parseError(response, "Join lock toggle failed"));
+        return;
+      }
+      const payload = await response.json() as GameStatusPayload;
+      setGameStatus(payload);
+      setStatusMessage(payload.joinLocked ? "Entry locked — no new players can join." : "Entry unlocked — players can join.");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Join lock toggle failed: ${reason}`);
+    } finally {
+      setJoinLockBusy(false);
+    }
+  };
+
   const fetchSecurityEvents = async (pagination?: { limit?: number; offset?: number }) => {
     const limit = typeof pagination?.limit === "number" ? pagination.limit : parseLimitInput(securityEventsLimit, 50);
     const offset = typeof pagination?.offset === "number" ? pagination.offset : parseOffsetInput(securityEventsOffset);
@@ -2023,6 +2047,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
           {!authToken ? (
             /* ── Join Screen ──────────────────────────────────── */
             <div className="join-screen">
+              <button className="join-home-btn" onClick={() => window.location.href = "/"}>← Home</button>
               <div className="join-logo">🗺️</div>
               <h1 className="join-title">SCAVENGE</h1>
               <p className="join-subtitle">Boyz Weekend 2026 · San Francisco</p>
@@ -2035,6 +2060,9 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
               )}
               {gameStatus?.status === "ENDED" && (
                 <div className="game-ended-banner">🏁 Hunt has ended</div>
+              )}
+              {gameStatus?.joinLocked && gameStatus?.status !== "ENDED" && (
+                <div className="game-ended-banner">🔒 Entry is currently locked — check back soon</div>
               )}
 
               <form onSubmit={joinTeam} className="join-form">
@@ -3074,6 +3102,18 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                   {adminEndHuntBusy ? "Updating…" : gameStatus?.status === "ENDED" ? "▶️ Turn Hunt Back On" : "🛑 Turn Off Hunt"}
                 </button>
                 <p className="hunt-mode-desc">{gameStatus?.status === "ENDED" ? "Sets game back to RUNNING. Teams can submit again." : "Sets game to ENDED. All submissions are locked."}</p>
+              </div>
+
+              <div className="hunt-mode-btn-group">
+                <button
+                  data-testid="btn-join-lock"
+                  className={`hunt-mode-btn ${gameStatus?.joinLocked ? "hunt-mode-btn--production" : "hunt-mode-btn--end"}`}
+                  onClick={() => { void toggleJoinLock(); }}
+                  disabled={joinLockBusy}
+                >
+                  {joinLockBusy ? "Updating…" : gameStatus?.joinLocked ? "🔓 Unlock Entry" : "🔒 Lock Entry"}
+                </button>
+                <p className="hunt-mode-desc">{gameStatus?.joinLocked ? "Entry is locked — no new players can join." : "Entry is open — players can join."}</p>
               </div>
             </div>
 
