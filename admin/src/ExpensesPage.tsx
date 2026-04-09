@@ -169,8 +169,24 @@ export default function ExpensesPage() {
         <span className="pub-header-sub">Boyz Weekend 2026</span>
       </header>
 
+      {/* Persistent stats bar */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", padding: "0.75rem 1.25rem 0", textAlign: "center" }}>
+        <div style={{ background: "#1e293b", borderRadius: "8px", padding: "0.5rem 0.25rem" }}>
+          <div style={{ fontSize: "0.65rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>People</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#f1f5f9" }}>{count}</div>
+        </div>
+        <div style={{ background: "#1e293b", borderRadius: "8px", padding: "0.5rem 0.25rem" }}>
+          <div style={{ fontSize: "0.65rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>Per Person</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#f1f5f9" }}>{fmtExact(costPerPerson)}</div>
+        </div>
+        <div style={{ background: "#1e293b", borderRadius: "8px", padding: "0.5rem 0.25rem" }}>
+          <div style={{ fontSize: "0.65rem", color: "#64748b", textTransform: "uppercase", letterSpacing: "0.07em" }}>Total</div>
+          <div style={{ fontSize: "1.3rem", fontWeight: 800, color: "#f1f5f9" }}>{fmt(totalExpenses)}</div>
+        </div>
+      </div>
+
       {/* Tabs */}
-      <div style={{ display: "flex", gap: "0.5rem", padding: "1rem 1.25rem 0" }}>
+      <div style={{ display: "flex", gap: "0.5rem", padding: "0.75rem 1.25rem 0" }}>
         {(["summary", "expenses", "people"] as const).map(t => (
           <button
             key={t}
