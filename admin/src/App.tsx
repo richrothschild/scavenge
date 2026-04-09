@@ -229,6 +229,8 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [adminClueUploadFile, setAdminClueUploadFile] = useState<File | null>(null);
   const [adminClueUploadBusy, setAdminClueUploadBusy] = useState(false);
   const [adminStartTestBusy, setAdminStartTestBusy] = useState(false);
+  const [adminStartProdBusy, setAdminStartProdBusy] = useState(false);
+  const [adminEndHuntBusy, setAdminEndHuntBusy] = useState(false);
   const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
@@ -1171,6 +1173,125 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
       setStatusMessage(`Start TEST hunt failed: ${reason}`);
     } finally {
       setAdminStartTestBusy(false);
+    }
+  };
+
+  const startProductionHunt = async () => {
+    if (!adminToken) {
+      setStatusMessage("Admin login required");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Reset to the PRODUCTION hunt and start the game now? This wipes current progress and loads the real clues."
+    );
+    if (!confirmed) return;
+
+    setAdminStartProdBusy(true);
+    try {
+      let activeAdminToken = adminToken;
+
+      setStatusMessage("Resetting to PRODUCTION hunt…");
+      const resetResponse = await fetch(`${apiBase}/admin/reset-seed`, {
+        method: "POST",
+        headers: getAdminHeaders(activeAdminToken),
+        body: JSON.stringify({ variant: "production" })
+      });
+
+      if (!resetResponse.ok) {
+        setStatusMessage(await parseError(resetResponse, "Production hunt reset failed"));
+        return;
+      }
+
+      const resetPayload = await resetResponse.json() as SeedResetResponse;
+
+      if (resetPayload.requiresRestart) {
+        setStatusMessage("Production hunt loaded. Restarting backend…");
+        try {
+          await fetch(`${apiBase}/admin/restart`, {
+            method: "POST",
+            headers: adminHeaders
+          });
+        } catch {
+          // Expected when the server exits before the response fully settles.
+        }
+
+        setStatusMessage("Waiting for backend to come back…");
+        await waitForApiReady();
+
+        setStatusMessage("Backend is up. Re-authenticating admin session…");
+        const reloginResponse = await fetch(`${apiBase}/auth/admin/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ password: adminPassword })
+        });
+
+        if (!reloginResponse.ok) {
+          setStatusMessage(await parseError(reloginResponse, "Admin re-login failed after restart"));
+          return;
+        }
+
+        const reloginPayload = await reloginResponse.json() as { token: string };
+        activeAdminToken = reloginPayload.token;
+        setAdminToken(reloginPayload.token);
+      }
+
+      setStatusMessage("Starting PRODUCTION hunt…");
+      const statusResponse = await fetch(`${apiBase}/game/status`, {
+        method: "POST",
+        headers: buildAdminMutationHeaders("game-status", activeAdminToken),
+        body: JSON.stringify({ status: "RUNNING" })
+      });
+
+      if (!statusResponse.ok) {
+        setStatusMessage(await parseError(statusResponse, "Production hunt start failed"));
+        return;
+      }
+
+      const statusPayload = await statusResponse.json() as GameStatusPayload;
+      setGameStatus(statusPayload);
+      await Promise.all([fetchLeaderboard(), fetchTeamAssignments(), fetchAuditLogs(), fetchReviewQueue(), fetchSecurityEvents()]);
+      setStatusMessage(`PRODUCTION hunt started with ${resetPayload.clueCount} clues (${resetPayload.resolvedSource} source).`);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`Start PRODUCTION hunt failed: ${reason}`);
+    } finally {
+      setAdminStartProdBusy(false);
+    }
+  };
+
+  const endHunt = async () => {
+    if (!adminToken) {
+      setStatusMessage("Admin login required");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Turn off the scavenger hunt? This sets the game to ENDED. Teams will no longer be able to submit answers."
+    );
+    if (!confirmed) return;
+
+    setAdminEndHuntBusy(true);
+    try {
+      const response = await fetch(`${apiBase}/game/status`, {
+        method: "POST",
+        headers: buildAdminMutationHeaders("game-status"),
+        body: JSON.stringify({ status: "ENDED" })
+      });
+
+      if (!response.ok) {
+        setStatusMessage(await parseError(response, "End hunt failed"));
+        return;
+      }
+
+      const payload = await response.json() as GameStatusPayload;
+      setGameStatus(payload);
+      setStatusMessage("Hunt ended. All gameplay is now locked.");
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      setStatusMessage(`End hunt failed: ${reason}`);
+    } finally {
+      setAdminEndHuntBusy(false);
     }
   };
 
@@ -2908,22 +3029,53 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
           <h3>Game Status</h3>
           <div className="panel">
             <p>
-              Current: <strong>{gameStatus?.status ?? "-"}</strong>
+              Current: <strong data-testid="game-status-label">{gameStatus?.status ?? "-"}</strong>
             </p>
             <p>
               Game: {gameStatus?.name ?? "-"} ({gameStatus?.timezone ?? "-"})
             </p>
-            <p>
-              One-click test launch resets to the TEST seed, restarts the backend, then marks the hunt RUNNING.
-            </p>
-            <div className="actions-row">
-              <button onClick={() => { void startTestHunt(); }} disabled={adminStartTestBusy}>
-                {adminStartTestBusy ? "Starting Test Hunt…" : "Start Test Hunt"}
-              </button>
+
+            <div className="hunt-mode-controls">
+              <div className="hunt-mode-btn-group">
+                <button
+                  data-testid="btn-start-test"
+                  className="hunt-mode-btn hunt-mode-btn--test"
+                  onClick={() => { void startTestHunt(); }}
+                  disabled={adminStartTestBusy || adminStartProdBusy || adminEndHuntBusy}
+                >
+                  {adminStartTestBusy ? "Starting…" : "🧪 Enable Test Mode"}
+                </button>
+                <p className="hunt-mode-desc">Loads test clues, resets all progress, starts the hunt.</p>
+              </div>
+
+              <div className="hunt-mode-btn-group">
+                <button
+                  data-testid="btn-start-production"
+                  className="hunt-mode-btn hunt-mode-btn--production"
+                  onClick={() => { void startProductionHunt(); }}
+                  disabled={adminStartTestBusy || adminStartProdBusy || adminEndHuntBusy}
+                >
+                  {adminStartProdBusy ? "Starting…" : "🏁 Enable Production Mode"}
+                </button>
+                <p className="hunt-mode-desc">Loads real clues, resets all progress, starts the hunt.</p>
+              </div>
+
+              <div className="hunt-mode-btn-group">
+                <button
+                  data-testid="btn-end-hunt"
+                  className="hunt-mode-btn hunt-mode-btn--end"
+                  onClick={() => { void endHunt(); }}
+                  disabled={adminStartTestBusy || adminStartProdBusy || adminEndHuntBusy}
+                >
+                  {adminEndHuntBusy ? "Ending…" : "🛑 Turn Off Hunt"}
+                </button>
+                <p className="hunt-mode-desc">Sets game to ENDED. All submissions are locked.</p>
+              </div>
+            </div>
+
+            <div className="actions-row" style={{ marginTop: "1rem" }}>
               <button onClick={() => updateGameStatus("PENDING")}>Set Pending</button>
-              <button onClick={() => updateGameStatus("RUNNING")}>Start / Run</button>
               <button onClick={() => updateGameStatus("PAUSED")}>Pause</button>
-              <button onClick={() => updateGameStatus("ENDED")}>End</button>
             </div>
             <div className="actions-row" style={{ marginTop: "0.5rem" }}>
               <button

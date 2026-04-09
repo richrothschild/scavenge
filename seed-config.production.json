@@ -37,6 +37,7 @@
     {
       "route_id": "route-a",
       "name": "West — Aquatic Park",
+      "start_direction": "Walk east along Beach Street toward Pier 39. Your first stop is along the Embarcadero waterfront where the original 1849 shoreline markers are embedded in the pavement near Pier 39.",
       "clue_ids": [
         "sf-a-001", "sf-a-002", "sf-a-003", "sf-a-004", "sf-a-005", "sf-a-006", "sf-a-007",
         "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
@@ -46,6 +47,7 @@
     {
       "route_id": "route-b",
       "name": "East — Embarcadero",
+      "start_direction": "Walk south along the Embarcadero. Your first stop is near Pier 33, where you can see Alcatraz directly across the water. About 15 minutes on foot.",
       "clue_ids": [
         "sf-b-001", "sf-b-002", "sf-b-003", "sf-b-004", "sf-b-005", "sf-b-006", "sf-b-007",
         "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
@@ -55,6 +57,7 @@
     {
       "route_id": "route-c",
       "name": "South — North Beach & Coit Tower",
+      "start_direction": "Walk south on Columbus Avenue for about 20 minutes into the Financial District. Your first stop is at the base of the Transamerica Pyramid, 600 Montgomery Street. It is the only building in San Francisco that looks like a pyramid.",
       "clue_ids": [
         "sf-c-001", "sf-c-002", "sf-c-003", "sf-c-004", "sf-c-005", "sf-c-006", "sf-c-007",
         "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
@@ -64,6 +67,7 @@
     {
       "route_id": "route-d",
       "name": "Southwest — Ghirardelli & Fort Mason",
+      "start_direction": "Walk west along Beach Street toward Fisherman's Wharf. Your first stop is Pier 45, at the far western end of the wharf near Taylor Street. About 10 minutes on foot.",
       "clue_ids": [
         "sf-d-001", "sf-d-002", "sf-d-003", "sf-d-004", "sf-d-005", "sf-d-006", "sf-d-007",
         "sf-shared-waymo", "sf-shared-lombard", "sf-shared-cable",
@@ -72,209 +76,448 @@
     }
   ],
   "clues": [
+
     {
-      "id": "sf-a-001", "route_order": 1, "zone_id": "zone-walk",
+      "id": "sf-a-001",
+      "route_order": 1,
+      "zone_id": "zone-walk",
       "title": "Gold Rush Ground",
-      "theme": "Gold Rush landfill — the land beneath Pier 39 was created from Gold Rush-era ship debris",
-      "difficulty": "hard", "points": 2
+      "location": "Embarcadero waterfront near Pier 39 — look for bronze markers embedded in the pavement showing the original 1849 shoreline",
+      "instructions": "Walk east along Beach Street to the Embarcadero waterfront near Pier 39. This city did not expand — it accumulated. The street you are standing on did not exist in 1849. Neither did the block behind you. San Francisco extended itself into the bay by filling it in — with rubble, with ballast, and with ships that were stripped and abandoned when their crews ran off to mine gold. Find physical evidence that the original shoreline was somewhere behind you. Send: (1) photo of that evidence, (2) the name of any one ship known to be permanently buried beneath the streets of San Francisco.",
+      "difficulty": "hard",
+      "points": 2,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of shoreline evidence — pavement markers, interpretive signage, or a seam or material change indicating fill — and names any historically documented buried ship. Accepted examples include but are not limited to: Niantic, General Harrison, Rome, Tennessee, Euphemia, Arkansas, Apollo, or any other documented Gold Rush-era vessel. Do not require a specific ship. Optional hint costs 1 point: 'You are looking for a change in pavement material or a bronze marker set into the ground.'"
     },
+
     {
-      "id": "sf-a-002", "route_order": 2, "zone_id": "zone-walk",
-      "title": "After the Fires",
-      "theme": "1906 earthquake rebuild — find evidence of post-disaster reconstruction near the waterfront",
-      "difficulty": "medium", "points": 1
+      "id": "sf-a-002",
+      "route_order": 2,
+      "zone_id": "zone-walk",
+      "title": "Fire Forced Order",
+      "location": "Aquatic Park Bathhouse (SF Maritime Museum) — walk west along the waterfront path about 10 minutes from Pier 39. Look for the large white curved building that looks like a ship.",
+      "instructions": "Walk west along the waterfront path from Pier 39 for about 10 minutes until you reach Aquatic Park. You are looking for a large white building with a curved roofline that sits at the edge of the beach — it looks like a ship ran aground and stayed. In 1906, an earthquake cracked the water mains and the city burned for three days. When rebuilding began, one lesson was absolute: wood was finished as a primary structural material in San Francisco. This building was built thirty years later under a federal program, and it shows exactly what that lesson looked like in practice. Look at what it is made of. Look at how it is shaped — no decorative wood anywhere, no combustible trim. Send: (1) photo of the building exterior showing its construction material, (2) what material dominates its construction and why that material became standard after 1906.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the Aquatic Park Bathhouse (SF Maritime Museum) and identifies reinforced concrete as the primary material — accept concrete, poured concrete, or concrete and steel. Accept any version of the fire-resistant logic: material chosen after 1906 disaster, wood eliminated from major construction, or concrete does not burn. Do not require technical vocabulary."
     },
+
     {
-      "id": "sf-a-003", "route_order": 3, "zone_id": "zone-walk",
+      "id": "sf-a-003",
+      "route_order": 3,
+      "zone_id": "zone-walk",
       "title": "Federal Concrete",
-      "theme": "WPA construction at Aquatic Park — the bathhouse and bleachers were built by New Deal labor",
-      "difficulty": "medium", "points": 1
+      "location": "Aquatic Park Bathhouse (SF Maritime Museum) — same building as the previous clue. Find the dedication plaques on the exterior.",
+      "instructions": "You are still at the Aquatic Park Bathhouse. This shoreline was redesigned during the worst economic crisis in American history. When a third of the country was out of work, the federal government put people to work building things — parks, bridges, post offices, beaches. Find a plaque or marker on this building identifying who funded and built it. Send: (1) photo of the building or a plaque identifying who built it, (2) the four-word name of the federal program that paid for it.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the Aquatic Park Bathhouse or its WPA plaque, and identifies the Works Progress Administration — accept either 'Works Progress Administration' or 'Work Projects Administration', both are correct for different periods of the same program. The bleachers, the beach promenade, and the Bathhouse itself are all WPA — accept any of these in the photo."
     },
+
     {
-      "id": "sf-a-004", "route_order": 4, "zone_id": "zone-walk",
-      "title": "A Woman With a Ladder",
-      "theme": "Lillie Coit — her connection to SF volunteer firefighters is memorialized near Aquatic Park",
-      "difficulty": "medium", "points": 1
+      "id": "sf-a-004",
+      "route_order": 4,
+      "zone_id": "zone-walk",
+      "title": "Cold Water and No Excuses",
+      "location": "South End Rowing Club and Dolphin Club — walk east along the Aquatic Park beach to the two historic clubhouses at the water's edge.",
+      "instructions": "Walk along the Aquatic Park beach toward the two historic clubhouses at the water's edge. The bay water here runs about 55 degrees year-round. There is no heated pool. There are no wetsuits in the official club rules. People have been swimming out of these two clubhouses — voluntarily, recreationally — since the 1870s. Send: (1) a photo with both club buildings visible in the same frame, (2) the names of both clubs and one founding year for each. Bonus: if any member of your team enters the water up to the knee, add a photo for 25 extra points.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo showing both the South End Rowing Club and Dolphin Club buildings and names both clubs with a founding year for each — South End Rowing Club 1873, Dolphin Club 1877, accept years within two years of correct. Bonus 25 points if a separate photo includes a team member in bay water up to at least the knee. Do not require exact founding years for base credit."
     },
+
     {
-      "id": "sf-a-005", "route_order": 5, "zone_id": "zone-walk",
+      "id": "sf-a-005",
+      "route_order": 5,
+      "zone_id": "zone-walk",
       "title": "Before Bridges",
-      "theme": "Pre-bridge rowing history at Aquatic Park — the bay was the highway before the Golden Gate opened",
-      "difficulty": "medium", "points": 1
+      "location": "South End Rowing Club and Dolphin Club — same buildings as the previous clue. Look at the building facades facing the beach.",
+      "instructions": "Look at the facades of both club buildings facing the beach. Both clubs on this beach predate the Golden Gate Bridge by more than sixty years. They were here before the bridge, before the automobile, before the cable cars were threatened with removal. The founding dates are on the buildings. Send: (1) photo of a founding date visible on either building's facade, (2) the name of the club and the year it was founded.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo showing a founding date on one of the club buildings and names either the South End Rowing Club (1873) or the Dolphin Club (1877). Accept either club — both answers are correct. The Golden Gate Bridge opened in 1937; both clubs predate it by more than 60 years."
     },
+
     {
-      "id": "sf-a-006", "route_order": 6, "zone_id": "zone-walk",
-      "title": "Strategy in Steel",
-      "theme": "WWII Liberty ships at Hyde Street Pier — mass-produced cargo ships that supplied the Allied war effort",
-      "difficulty": "medium", "points": 1
+      "id": "sf-a-006",
+      "route_order": 6,
+      "zone_id": "zone-walk",
+      "title": "The Last of the Wind",
+      "location": "Hyde Street Pier — walk east from the rowing clubs about 5 minutes to the pier. Look for the tall masts of a square-rigged sailing ship.",
+      "instructions": "Walk east from the rowing clubs about 5 minutes to Hyde Street Pier. Look for the tall masts of a square-rigged sailing ship — three masts, full rigging, the kind of ship that has no engine. This ship made seventeen voyages around Cape Horn — the most dangerous stretch of ocean in commercial shipping, where the wind comes from the wrong direction and the waves reach sixty feet. It carried grain, lumber, and coal. It was built in 1886. By 1900 it was already obsolete — not because it was worn out, but because steam-powered ships could ignore the wind entirely and run on a schedule. Send: (1) photo of the ship's hull and rigging, (2) the ship's name and what eventually made sailing cargo ships economically unviable.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the Balclutha or any square-rigged sailing ship at Hyde Street Pier and explains that steam power eliminated commercial sailing ships because steam was faster, more reliable, schedule-independent, and not subject to wind or weather. Accept any version of this reasoning. The ship's name is on the bow and stern."
     },
+
     {
-      "id": "sf-a-007", "route_order": 7, "zone_id": "zone-walk",
+      "id": "sf-a-007",
+      "route_order": 7,
+      "zone_id": "zone-walk",
       "title": "Silent Pacific",
-      "theme": "USS Pampanito submarine at Hyde Street Pier — Fleet submarine that sank 6 Japanese ships",
-      "difficulty": "medium", "points": 1
+      "location": "Pier 45 — walk a short distance along the waterfront from Hyde Street Pier. The submarine is docked at Pier 45.",
+      "instructions": "Walk a short distance along the waterfront to Pier 45. Look for the submarine. This vessel completed six war patrols. It sank six Japanese ships. But its most unusual act came at the end of its fifth patrol, when it found hundreds of Allied prisoners of war floating in the ocean after their transport ships had been sunk — and pulled 73 of them out of the water. The submarine's crew was not required to do this. It slowed them down and exposed them to danger. They did it anyway. Find the submarine. Send: (1) photo of the vessel name on the hull, (2) the submarine's name and the ocean it patrolled. When you have submitted, request your Waymo from Hyde Street — walk back one block to Hyde Street and request your ride to 1083 Lombard Street.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the USS Pampanito's name on the hull and identifies the submarine as USS Pampanito patrolling the Pacific Ocean or Pacific theater. The POW rescue story is context — do not require it in the answer."
     },
+
     {
-      "id": "sf-b-001", "route_order": 101, "zone_id": "zone-walk",
+      "id": "sf-b-001",
+      "route_order": 101,
+      "zone_id": "zone-walk",
       "title": "The Occupation",
-      "theme": "1969 Native American occupation of Alcatraz — 89 activists held the island for 19 months demanding treaty rights",
-      "difficulty": "medium", "points": 1
+      "location": "Embarcadero waterfront near Pier 33 — walk south along the Embarcadero from the hotel about 15 minutes. Find a spot with a clear view of Alcatraz Island across the water.",
+      "instructions": "Walk south along the Embarcadero from the hotel for about 15 minutes until you reach the waterfront near Pier 33. Find a spot with a clear view of the island across the bay. For nineteen months, that island was occupied — not by the government, but by the people who argued it was rightfully theirs under a treaty the government had broken. Send: (1) photo with the island visible in the frame, (2) who occupied it and what they were demanding.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo with Alcatraz Island visible and identifies the 1969-1971 Native American occupation — accept 'Indians of All Tribes', 'Native Americans', or 'American Indians' — and states any version of their demand: treaty rights, return of surplus federal land, or a Native American cultural center and university."
     },
+
     {
-      "id": "sf-b-002", "route_order": 102, "zone_id": "zone-walk",
+      "id": "sf-b-002",
+      "route_order": 102,
+      "zone_id": "zone-walk",
       "title": "The Strike That Shook the Port",
-      "theme": "1934 longshoremen's strike at Pier 23 — a general strike shut down SF for 4 days and changed American labor law",
-      "difficulty": "medium", "points": 1
+      "location": "Pier 23, Embarcadero — continue south along the Embarcadero from Pier 33, about 10 minutes on foot.",
+      "instructions": "Continue south along the Embarcadero about 10 minutes to Pier 23. In 1934, the workers who loaded these ships stopped working. Within days, so did nearly everyone else in the city. For four days San Francisco became the only major American city ever shut down by a general strike. A labor dispute on this waterfront changed federal law. Find something here that connects to this waterfront's working history. Send: (1) photo, (2) what kind of workers started the strike and one thing they won.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission identifies longshoremen — dockworkers or waterfront workers — as the strikers, and states any of the following as what they won: union hiring halls, the right to collective bargaining on the docks, federal recognition of union rights, or the passage of the NLRA or Wagner Act. Reject vague answers like 'workers' rights' without specificity."
     },
+
     {
-      "id": "sf-b-003", "route_order": 103, "zone_id": "zone-walk",
+      "id": "sf-b-003",
+      "route_order": 103,
+      "zone_id": "zone-walk",
       "title": "Empire of Goods",
-      "theme": "Port of SF industrial history at Pier 7 — once the busiest port on the Pacific Coast",
-      "difficulty": "medium", "points": 1
+      "location": "Pier 7, Embarcadero — continue south about 5 minutes from Pier 23. Walk to the end of the pier.",
+      "instructions": "Continue south on the Embarcadero about 5 minutes to Pier 7. Walk all the way to the end of the pier, then turn around. You are looking at what was once the financial engine of the entire Pacific Coast — before Los Angeles, before Seattle, before any of it. This port was the reason San Francisco existed. Two things ended its dominance. Send: (1) photo from the end of the pier looking back at the skyline, (2) name one thing that made this the dominant Pacific port and one thing that ended it.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes the pier-looking-back photo and names any plausible driver of dominance — Gold Rush trade, natural deep-water harbor, first major Pacific railroad terminus — AND any plausible reason for decline — rise of Oakland's port, containerization, Bay Bridge shifting commerce, loss of shipping to Southern California. Partial credit for one of two."
     },
+
     {
-      "id": "sf-b-004", "route_order": 104, "zone_id": "zone-walk",
+      "id": "sf-b-004",
+      "route_order": 104,
+      "zone_id": "zone-walk",
       "title": "The Bridge That Changed Everything",
-      "theme": "Bay Bridge at Rincon Park — opened 1936, six months before the Golden Gate, at twice the cost",
-      "difficulty": "medium", "points": 1
+      "location": "Rincon Park, Embarcadero — continue south from Pier 7 about 10 minutes to the park at the base of the Bay Bridge.",
+      "instructions": "Continue south on the Embarcadero about 10 minutes to Rincon Park, the small waterfront park at the base of the Bay Bridge. Everyone knows the famous one. Almost no one knows this one got there first — six months earlier, at twice the cost, carrying ten times the traffic on opening day. From Rincon Park you can see both bridges. Send: (1) photo of the Bay Bridge from the park, (2) which bridge opened first and in what year.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission identifies the Bay Bridge — San Francisco-Oakland Bay Bridge — as opening first, in 1936. The Golden Gate opened May 1937; the Bay Bridge opened November 1936. Accept any phrasing that identifies the Bay Bridge and the year 1936."
     },
+
     {
-      "id": "sf-b-005", "route_order": 105, "zone_id": "zone-walk",
+      "id": "sf-b-005",
+      "route_order": 105,
+      "zone_id": "zone-walk",
       "title": "Before the Bridge",
-      "theme": "Ferry Building — before 1937, 50,000 commuters a day crossed the bay by ferry; the Bridge killed the system overnight",
-      "difficulty": "medium", "points": 1
+      "location": "Ferry Building, Embarcadero — walk north from Rincon Park about 5 minutes. The building with the tall clock tower on the waterfront.",
+      "instructions": "Walk north on the Embarcadero about 5 minutes to the Ferry Building — the long building with the tall clock tower directly on the waterfront. This building survived the 1906 earthquake when almost nothing around it did. For three decades after, 50,000 people passed through it every single day — more than any train station in California. Then, in the span of one year, the crowd vanished. Find the clock tower. Send: (1) photo looking up at the clock tower, (2) what the building was, and what eliminated the need for it almost overnight.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes the clock tower photo and identifies the Ferry Building as a passenger ferry terminal, and states that the Bay Bridge and/or Golden Gate Bridge made commuter ferries largely unnecessary in 1936-1937. Accept any version of 'bridges replaced ferries.'"
     },
+
     {
-      "id": "sf-b-006", "route_order": 106, "zone_id": "zone-walk",
+      "id": "sf-b-006",
+      "route_order": 106,
+      "zone_id": "zone-walk",
       "title": "The Fountain They Hated",
-      "theme": "Vaillancourt Fountain at Justin Herman Plaza — installed 1971, condemned as an eyesore by critics, beloved by skaters",
-      "difficulty": "medium", "points": 1
+      "location": "Embarcadero Plaza (Justin Herman Plaza) — walk north from the Ferry Building about 2 minutes. Look for the large open plaza with an unusual concrete fountain.",
+      "instructions": "Walk north past the Ferry Building about 2 minutes to the large open plaza — Embarcadero Plaza. In 1971, the city paid to have a fountain installed here and immediately wished it hadn't. The newspaper called it an assault on the waterfront. Skateboarders disagreed. It is one of the most controversial public artworks in San Francisco's history and it is still here, doing nothing to change anyone's mind. Find it — you will not mistake it for anything else. Send: (1) photo of the fountain, (2) the name of the sculptor.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the Vaillancourt Fountain and names Armand Vaillancourt as the sculptor. The name is on a plaque at the base of the fountain."
     },
+
     {
-      "id": "sf-b-007", "route_order": 107, "zone_id": "zone-walk",
+      "id": "sf-b-007",
+      "route_order": 107,
+      "zone_id": "zone-walk",
       "title": "The Murals They Tried to Hide",
-      "theme": "Censored WPA murals at Rincon Center — 1941 labor imagery so charged the post office locked the building for months",
-      "difficulty": "medium", "points": 1
+      "location": "Rincon Center, 101 Spear Street — walk one block southwest from the plaza to the corner of Spear and Mission. Enter the building and go to the main atrium.",
+      "instructions": "Walk one block southwest to 101 Spear Street, at the corner of Spear and Mission — Rincon Center. Enter the building and go to the main atrium. In 1941, a post office here was completed and immediately locked. The problem was the artwork inside: murals painted with federal money that depicted American workers with enough honesty that officials called the content un-American. The building eventually opened. The murals are still there. Send: (1) photo of one of the murals on the wall, (2) why officials tried to prevent the public from seeing them. When you have submitted, walk west on Mission Street to the Embarcadero BART plaza on Market Street — about 5 minutes. Request your Waymo to 1083 Lombard Street from there.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a mural photo from inside Rincon Center and identifies any version of the controversy: leftist or Communist imagery including hammer and sickle or labor organizers, or that officials found the content politically objectionable or un-American. The murals are by Anton Refregier — accept his name as part of the answer but do not require it. Note: building is generally open weekdays; on Saturday access may be limited to lobby level only — accept lobby mural photo."
     },
+
     {
-      "id": "sf-c-001", "route_order": 201, "zone_id": "zone-walk",
+      "id": "sf-c-001",
+      "route_order": 201,
+      "zone_id": "zone-walk",
       "title": "The Pyramid That Wasn't Welcome",
-      "theme": "Transamerica Pyramid — completed 1972; protestors called it an alien intrusion, now it's SF's most recognized silhouette",
-      "difficulty": "medium", "points": 1
+      "location": "Transamerica Pyramid, 600 Montgomery Street — walk south on Columbus Avenue from the hotel for about 20 minutes into the Financial District.",
+      "instructions": "Walk south on Columbus Avenue for about 20 minutes into the Financial District. Your destination is 600 Montgomery Street — the Transamerica Pyramid. It is the only building in San Francisco that looks like a pyramid. When the building permit was filed in 1969, the neighbors organized protests. When it opened in 1972, the critics lined up. The architect said it was designed to let light reach the streets below. The protestors said it belonged somewhere else — specifically, somewhere that wasn't San Francisco. Photograph it from street level. Send: (1) photo of the full building from the sidewalk, (2) one specific objection the protestors raised against it.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a full-building photo and states any plausible objection: blocked views or light to neighboring buildings, out of scale with the neighborhood, architecturally incompatible with SF's character, too tall, alien or intrusive design. Accept any historically reasonable criticism."
     },
+
     {
-      "id": "sf-c-002", "route_order": 202, "zone_id": "zone-walk",
+      "id": "sf-c-002",
+      "route_order": 202,
+      "zone_id": "zone-walk",
       "title": "The Trial of the Poem",
-      "theme": "City Lights Bookstore — Allen Ginsberg's Howl was seized here in 1957; the obscenity trial made Beat literature famous",
-      "difficulty": "medium", "points": 1
+      "location": "City Lights Bookstore, 261 Columbus Avenue — walk one block north on Columbus Ave from the Pyramid. Green awning, hard to miss.",
+      "instructions": "Walk one block north on Columbus Avenue to City Lights Bookstore at 261 Columbus — green awning, hard to miss. In 1957, San Francisco police walked into this bookstore and arrested the owner for selling a poem. The poet had already left the country. The trial lasted months, the verdict changed what American publishers were legally allowed to print, and the owner became a hero of a literary movement that had just found its name. Send: (1) photo of the storefront, (2) the title of the poem and the poet's name.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a City Lights Bookstore photo and identifies Howl by Allen Ginsberg. Accept 'Howl and Other Poems' as the title. The bookstore owner was Lawrence Ferlinghetti — do not require his name."
     },
+
     {
-      "id": "sf-c-003", "route_order": 203, "zone_id": "zone-walk",
+      "id": "sf-c-003",
+      "route_order": 203,
+      "zone_id": "zone-walk",
       "title": "The Bar Jack Built",
-      "theme": "Vesuvio Cafe — Jack Kerouac stood up Neal Cassady to drink here the night he was supposed to meet Henry Miller",
-      "difficulty": "medium", "points": 1
+      "location": "Vesuvio Cafe, 255 Columbus Avenue — cross directly through Jack Kerouac Alley, the narrow alley alongside City Lights. Vesuvio is immediately across.",
+      "instructions": "Step directly across Jack Kerouac Alley — the narrow alley running alongside City Lights. Vesuvio Cafe is immediately across at 255 Columbus. Across the alley from the bookstore is the bar that the bookstore's literary crowd made famous. Jack Kerouac drank here. His name is on the wall. The movement that gathered in these two buildings — bookstore and bar — produced the best-known work of American road literature. Send: (1) photo of the exterior sign, (2) the title of the novel Kerouac wrote that defined the era.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the Vesuvio Cafe exterior and identifies On the Road. Accept any novel by Kerouac."
     },
+
     {
-      "id": "sf-c-004", "route_order": 204, "zone_id": "zone-walk",
+      "id": "sf-c-004",
+      "route_order": 204,
+      "zone_id": "zone-walk",
       "title": "The Saints and the Immigrants",
-      "theme": "Washington Square Park — heart of Italian North Beach; the volunteer fire brigade statue honors the community that rebuilt SF",
-      "difficulty": "medium", "points": 1
+      "location": "Washington Square Park, North Beach — walk north on Columbus Avenue about 5 minutes. It is the large green park with a church on the far side.",
+      "instructions": "Walk north on Columbus Avenue about 5 minutes to Washington Square Park — the large green park with a church facing it. This park is the center of what was once San Francisco's Italian neighborhood. The statue in the park does not honor a general or a mayor. It honors volunteers — people who fought fires with hand pumps and buckets in the years before the city had a professional fire department. Find the statue. Send: (1) photo of the statue with the church visible behind it, (2) who the statue commemorates.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of the volunteer firefighter statue with Saints Peter and Paul Church visible behind it, and identifies the subjects as volunteer firefighters, the Volunteer Fire Department, or Benjamin Franklin — the statue is formally a Benjamin Franklin memorial honoring the volunteer fire companies, accept either answer or both."
     },
+
     {
-      "id": "sf-c-005", "route_order": 205, "zone_id": "zone-walk",
+      "id": "sf-c-005",
+      "route_order": 205,
+      "zone_id": "zone-walk",
       "title": "The Marriage That Made Headlines",
-      "theme": "Saints Peter & Paul Church — DiMaggio and Monroe posed here for photos after their 1954 City Hall wedding",
-      "difficulty": "medium", "points": 1
+      "location": "Saints Peter & Paul Church, 666 Filbert Street — walk across Washington Square Park to the church facing you on the north side.",
+      "instructions": "Walk across the park to the church on the north side — Saints Peter and Paul Church at 666 Filbert Street. They did not get married here. City Hall handled that, the day before. But afterward, they walked over and had their photograph taken on these steps — the most famous baseball player of his generation and the most photographed woman in America. Name both of them and the year they were married.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if submission identifies Joe DiMaggio and Marilyn Monroe. The year was 1954. Accept 1954. Do not fail for minor factual errors about the City Hall versus church distinction — that nuance is the point of the clue, not the rubric."
     },
+
     {
-      "id": "sf-c-006", "route_order": 206, "zone_id": "zone-walk",
+      "id": "sf-c-006",
+      "route_order": 206,
+      "zone_id": "zone-walk",
       "title": "The Tower She Inspired",
-      "theme": "Coit Tower exterior — built with Lillie Coit's bequest; she left one-third of her estate to beautify SF",
-      "difficulty": "medium", "points": 1
+      "location": "Coit Tower, Telegraph Hill — walk east from the church toward Telegraph Hill and follow the signs uphill. About 10 minutes on foot. The tower is at the top.",
+      "instructions": "Walk east from the church toward Telegraph Hill and follow the signs uphill to Coit Tower — about 10 minutes, it is a real hill. She was a child in San Francisco during the Gold Rush era. She chased fire wagons through the streets until the volunteers adopted her as their mascot — and eventually made her an honorary member of the company. When she died, she left a third of her estate to the city. This tower was built with that money. Send: (1) photo looking up at the tower from the base, (2) her name.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of Coit Tower from the base looking up and identifies Lillie Coit, Lillie Hitchcock Coit, or Lillie Hitchcock. Her name and story are on a plaque at the base of the tower."
     },
+
     {
-      "id": "sf-c-007", "route_order": 207, "zone_id": "zone-walk",
+      "id": "sf-c-007",
+      "route_order": 207,
+      "zone_id": "zone-walk",
       "title": "The Art They Tried to Lock Away",
-      "theme": "Coit Tower murals — 1934 WPA frescoes included hammer-and-sickle imagery; the tower was padlocked before opening",
-      "difficulty": "medium", "points": 1
+      "location": "Coit Tower interior — pay admission at the base of the tower and go inside. The murals are on the ground floor walls. You do not need to ride to the top.",
+      "instructions": "Pay admission at the base of Coit Tower and go inside. The murals are on the interior walls of the ground floor — you do not need to ride to the top. The tower opened in 1934, then was immediately closed. City officials had funded murals to decorate the interior and then discovered what the artists had actually painted: American workers, farmers, and organizers — and embedded in one panel, a symbol that made the government deeply uncomfortable. Send: (1) photo of any mural panel on the interior walls, (2) what specifically caused officials to lock the tower before the public had seen it. When you have submitted, walk back down Telegraph Hill. Your Waymo pickup is on Columbus Avenue near the waterfront — walk north on Columbus to the waterfront and request your ride to 1083 Lombard Street from there.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes an interior Coit Tower mural photo and identifies any version of the controversy: Communist imagery, a hammer and sickle in one of the panels, leftist or labor-radical themes that officials deemed un-American. The murals are WPA frescoes. Accept broad descriptions of political controversy — teams are not expected to identify individual panels precisely."
     },
+
     {
-      "id": "sf-d-001", "route_order": 301, "zone_id": "zone-walk",
+      "id": "sf-d-001",
+      "route_order": 301,
+      "zone_id": "zone-walk",
       "title": "The Fishermen's Trade",
-      "theme": "Pier 45 — Italian immigrant fishing families built San Francisco's Dungeness crab industry from scratch in the 1880s",
-      "difficulty": "medium", "points": 1
+      "location": "Pier 45, Fisherman's Wharf — walk west along Beach Street about 10 minutes to the far western end of the wharf near Taylor Street.",
+      "instructions": "Walk west along Beach Street for about 10 minutes to Pier 45, at the far western end of Fisherman's Wharf near Taylor Street. In the 1880s, families arrived from a specific coastal region of Italy carrying small boats, nets, and knowledge of one particular crab that nobody else in California was harvesting. They built an entire industry from scratch. That crab is still on every menu on this block. Find something here — a sign, a display, a boat — that connects the fishing trade to its immigrant origins. Send: (1) photo, (2) the name of the crab.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission identifies Dungeness crab — accept Dungeness. The Italian regional origin — Liguria — is bonus context, do not require it."
     },
+
     {
-      "id": "sf-d-002", "route_order": 302, "zone_id": "zone-walk",
+      "id": "sf-d-002",
+      "route_order": 302,
+      "zone_id": "zone-walk",
       "title": "The Last D-Day Ship",
-      "theme": "SS Jeremiah O'Brien at Pier 45 — one of only two surviving Liberty ships that actually participated in the D-Day invasion",
-      "difficulty": "medium", "points": 1
+      "location": "SS Jeremiah O'Brien, Pier 45 — the ship is docked at the same pier. Walk along the wharf to find it.",
+      "instructions": "Stay at Pier 45 and walk along the wharf. The Allied strategy in the Atlantic was simple and brutal: build ships faster than the enemy could sink them. Over 2,700 of this design were produced. Almost none survive. This one does — and it was actually at Normandy on June 6, 1944. Find it. Send: (1) photo of the ship's name painted on the hull, (2) what type of ship it is and the strategic logic behind building so many.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of 'SS Jeremiah O'Brien' on the hull and explains that Liberty ships were mass-produced cargo vessels built to resupply Allied forces faster than U-boats could destroy them — or any equivalent statement of the production-over-attrition logic."
     },
+
     {
-      "id": "sf-d-003", "route_order": 303, "zone_id": "zone-walk",
+      "id": "sf-d-003",
+      "route_order": 303,
+      "zone_id": "zone-walk",
       "title": "The Factory That Became a Destination",
-      "theme": "Ghirardelli Square — converted in 1964, one of America's first adaptive reuse projects; the factory clock tower was preserved",
-      "difficulty": "medium", "points": 1
+      "location": "Ghirardelli Square, 900 North Point Street — walk west along the waterfront from Pier 45 about 8 minutes. Look for the large brick complex with the clock tower and the Ghirardelli sign.",
+      "instructions": "Walk west along the waterfront from Pier 45 about 8 minutes to Ghirardelli Square at 900 North Point Street — the large brick complex with the clock tower and the illuminated Ghirardelli sign. In 1964, the owners of this block had a choice that was unusual for its time: demolish an aging factory or preserve it. They chose to preserve it — converting the buildings into shops and restaurants while keeping the original brick, the machinery, and the clock tower. It became a national model for what to do with industrial buildings that outlived their industry. Find the clock tower. Send: (1) photo of the clock tower, (2) what this building manufactured, and what year it stopped manufacturing it.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes the clock tower photo and identifies chocolate — Ghirardelli chocolate. The factory closed and conversion began in 1962, opened as Ghirardelli Square in 1964 — accept any year in the early 1960s. Do not require knowledge of 'adaptive reuse' as a term."
     },
+
     {
-      "id": "sf-d-004", "route_order": 304, "zone_id": "zone-walk",
+      "id": "sf-d-004",
+      "route_order": 304,
+      "zone_id": "zone-walk",
       "title": "The Game They Brought With Them",
-      "theme": "Victorian Park bocce courts — Italian immigrants built permanent bocce courts here in the early 1900s; still active today",
-      "difficulty": "medium", "points": 1
+      "location": "Victorian Park bocce courts — walk east from Ghirardelli Square about 5 minutes toward Aquatic Park. The courts are between the cable car turnaround and the beach.",
+      "instructions": "Walk east from Ghirardelli Square about 5 minutes toward Aquatic Park. The courts you are looking for are between the cable car turnaround and the beach — long narrow lanes of packed earth or decomposed granite. These courts were built by Italian immigrants in the early 1900s and have been in continuous use ever since — one of the oldest active bocce installations in the United States. The game itself predates the Roman Empire. Find the courts. Send: (1) photo of the courts with the bay visible behind them, (2) the name of the game, one rule, and which immigrant community built these specific courts.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes the courts-with-bay photo, identifies bocce — accept bocce ball — states any valid rule such as throw balls toward the pallino or closest ball scores, and identifies Italian immigrants or the Italian fishing community as the builders. Do not require a specific village or region."
     },
+
     {
-      "id": "sf-d-005", "route_order": 305, "zone_id": "zone-walk",
+      "id": "sf-d-005",
+      "route_order": 305,
+      "zone_id": "zone-walk",
       "title": "The Port of Departure",
-      "theme": "Fort Mason Great Meadow — 1.6 million American soldiers shipped out from these piers in WWII, more than any other port",
-      "difficulty": "medium", "points": 1
+      "location": "Fort Mason Great Meadow — walk west through the Fort Mason gate on Marina Boulevard, about 10 minutes from the bocce courts. Continue uphill to the large open meadow overlooking the bay.",
+      "instructions": "Walk west along the waterfront path and enter Fort Mason through the main gate on Marina Boulevard — about 10 minutes from the bocce courts. Continue uphill to the large open meadow overlooking the bay. More American soldiers left for war from this spot than from any other port in the country. During World War II, 1.6 million men stood somewhere near where you are standing, looked back at the city, and boarded ships for the Pacific. Many did not return. Find a marker. Send: (1) photo of the view toward the bay from the Fort Mason bluff, (2) the approximate number of soldiers who shipped out from here.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes the bay-view photo from Fort Mason and states approximately 1.6 million — accept any figure between 1 million and 2 million. Full credit for '1.6 million' or 'over a million.'"
     },
+
     {
-      "id": "sf-d-006", "route_order": 306, "zone_id": "zone-walk",
+      "id": "sf-d-006",
+      "route_order": 306,
+      "zone_id": "zone-walk",
       "title": "When Art Replaced Ammo",
-      "theme": "Fort Mason Center Building B — decommissioned 1972, became one of the first counterculture arts centers in America",
-      "difficulty": "medium", "points": 1
+      "location": "Fort Mason Center Building B — walk downhill from the meadow toward the waterfront. Building B is one of the large warehouse buildings at the water's edge. Look for the Building B sign.",
+      "instructions": "Walk downhill from the meadow toward the waterfront buildings. Find Fort Mason Center Building B — one of the large warehouse structures at the water's edge with the Building B sign at the entrance. During World War II, these warehouses held military equipment staged for the Pacific. In 1972, the Army left. Rather than demolishing the buildings, the city converted them into one of the first arts centers of the counterculture era — an experiment that was strange enough at the time that people weren't sure it would work. Send: (1) photo of the building exterior or the entrance sign, (2) what these buildings were used for during WWII.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a Fort Mason Center Building B photo and identifies military storage, supply depot, ammunition storage, or staging area as the WWII use. Accept broad answers — the specific function is less important than the military-to-arts contrast."
     },
+
     {
-      "id": "sf-d-007", "route_order": 307, "zone_id": "zone-walk",
+      "id": "sf-d-007",
+      "route_order": 307,
+      "zone_id": "zone-walk",
       "title": "The Oldest Defense",
-      "theme": "Black Point Battery at Fort Mason — Civil War artillery fortification built 1863, the oldest surviving military site on this route",
-      "difficulty": "medium", "points": 1
+      "location": "Black Point Battery — from Building B, follow the path west along the bluff above the water for 3-4 minutes. You are looking for earthworks and old fortification walls cut into the hillside.",
+      "instructions": "From Building B, follow the path west along the bluff above the water for about 3-4 minutes. You will find the remains of a Civil War fortification cut into the hillside — earthworks and old masonry walls that once held artillery pointed at the bay entrance. In 1863, the government feared a Confederate naval attack on San Francisco Bay. The city was the financial heart of the Union cause. An attack here would have been catastrophic. The attack never came. Find the earthworks. Send: (1) photo of the battery or the remaining fortification walls, (2) why a Confederate attack on San Francisco was considered a realistic threat. When you have submitted, walk back to the Fort Mason Center main entrance on Marina Boulevard. Request your Waymo to 1083 Lombard Street from Marina Boulevard at the main gate.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if submission includes a photo of Black Point Battery earthworks or fortification walls and explains any version of the Confederate threat: SF was a major gold-shipping port funding the Union, Confederate raiders were active in the Pacific, or California's loyalty was not guaranteed early in the war. Accept any historically reasonable explanation."
     },
+
     {
-      "id": "sf-shared-waymo", "route_order": 1001, "zone_id": "zone-waymo",
+      "id": "sf-shared-waymo",
+      "route_order": 1001,
+      "zone_id": "zone-waymo",
       "title": "Waymo Transition",
-      "theme": "Call a Waymo from your current location and ride to 1083 Lombard Street. Screenshot your completed ride.",
-      "difficulty": "easy", "points": 1
+      "location": "Your Waymo pickup point — see your previous clue for the exact pickup location for your route.",
+      "instructions": "For a moment, remove yourselves from control. Request a Waymo from your current location to 1083 Lombard Street. Inside the vehicle, send: (1) a photo of your team in the car, (2) complete this sentence: 'Even without a driver, San Francisco still ______.'",
+      "difficulty": "easy",
+      "points": 1,
+      "submission_type": "PHOTO",
+      "ai_rubric": "PASS if team submits an in-vehicle photo and a completed sentence response. Accept any reasonable sentence completion."
     },
+
     {
-      "id": "sf-shared-lombard", "route_order": 1002, "zone_id": "zone-walk",
+      "id": "sf-shared-lombard",
+      "route_order": 1002,
+      "zone_id": "zone-walk",
       "title": "Chosen Inconvenience",
-      "theme": "Lombard Street — residents voted to have it made crooked in 1922 to slow runaway cars on the steep grade",
-      "difficulty": "medium", "points": 1
+      "location": "1083 Lombard Street — your Waymo will drop you here.",
+      "instructions": "You are standing in front of 1083 Lombard Street — the most photographed residential address in San Francisco. The daughter of a dictator lives here. She grew up in Sunnyvale. This is not a coincidence. It is widely understood that only people of truly exceptional origin are permitted to reside on streets of this caliber. In 1922, residents voted to have this street made deliberately crooked to slow runaway cars on the steep grade. They chose inconvenience over efficiency. Send a 15-second video explaining what it means to have great offspring — and why Sunnyvale keeps producing them.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "VIDEO",
+      "ai_rubric": "PASS if a 15-second video is delivered at 1083 Lombard and references great offspring, Sunnyvale, or Grace. Also PASS if the 1922 crooked street vote is mentioned — the historical fact and the personal tribute are both valid paths through this clue."
     },
+
     {
-      "id": "sf-shared-cable", "route_order": 1003, "zone_id": "zone-cable-car",
+      "id": "sf-shared-cable",
+      "route_order": 1003,
+      "zone_id": "zone-cable-car",
       "title": "Democracy Saved It",
-      "theme": "Powell-Hyde cable car — a 1947 citizen vote stopped the mayor from scrapping the entire cable car system",
-      "difficulty": "medium", "points": 1
+      "location": "Powell-Hyde cable car — walk down Lombard Street to Hyde Street and board the Powell-Hyde cable car heading downhill toward Buena Vista.",
+      "instructions": "Walk down Lombard Street to Hyde Street and board the Powell-Hyde cable car heading downhill. In 1947, voters chose inconvenience over efficiency when the mayor tried to scrap the entire cable car system in favor of buses. The citizens voted to keep it. While moving downhill on the cable car, send a video of your team saying: 'We earned the descent.' Then ride to the bottom and walk to Buena Vista Cafe at 2765 Hyde Street.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "VIDEO",
+      "ai_rubric": "PASS if team submits a moving cable car video with the required phrase 'We earned the descent' spoken clearly."
     },
+
     {
-      "id": "sf-finale-001", "route_order": 1004, "zone_id": "zone-walk",
+      "id": "sf-finale-001",
+      "route_order": 1004,
+      "zone_id": "zone-walk",
       "title": "Improvisation and Geography",
-      "theme": "Grateful Dead — formed in the Haight in 1965; their free outdoor concerts reshaped what a rock show could be",
-      "difficulty": "medium", "points": 1
+      "location": "Buena Vista Cafe, 2765 Hyde Street — final table round, delivered in person.",
+      "instructions": "Buena Vista final table round. In the 1960s, one San Francisco band became defined by never playing the same song the same way twice. Name the neighborhood most associated with that movement — and the band.",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer identifies Haight-Ashbury and the Grateful Dead."
     },
+
     {
-      "id": "sf-finale-002", "route_order": 1005, "zone_id": "zone-walk",
+      "id": "sf-finale-002",
+      "route_order": 1005,
+      "zone_id": "zone-walk",
       "title": "Succession and Shock",
-      "theme": "Dianne Feinstein — discovered Harvey Milk's body and became mayor that day; served 10 years defining modern SF politics",
-      "difficulty": "medium", "points": 1
+      "location": "Buena Vista Cafe, 2765 Hyde Street — final table round, delivered in person.",
+      "instructions": "Buena Vista final table round. In 1978, two assassinations changed San Francisco politics. Who became mayor as a result — and later served in the U.S. Senate for decades?",
+      "difficulty": "medium",
+      "points": 1,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer is Dianne Feinstein."
     },
+
     {
-      "id": "sf-tiebreak-001", "route_order": 9999, "zone_id": "zone-walk",
+      "id": "sf-tiebreak-001",
+      "route_order": 9999,
+      "zone_id": "zone-walk",
       "title": "Loma Prieta Synthesis",
-      "theme": "1989 earthquake — the 15-second quake during the World Series killed 63 people and collapsed the Embarcadero Freeway, accidentally beautifying the waterfront",
-      "difficulty": "very_hard", "points": 3
+      "location": "Buena Vista Cafe — tiebreaker, host-delivered.",
+      "instructions": "Tiebreaker question, delivered by the host. In 1989, a 15-second earthquake during the World Series killed 63 people, collapsed a freeway, and accidentally improved a major part of San Francisco's waterfront. Explain how a natural disaster made the city more beautiful — and name the freeway that came down.",
+      "difficulty": "very_hard",
+      "points": 3,
+      "submission_type": "TEXT",
+      "ai_rubric": "PASS if answer identifies the Embarcadero Freeway as the structure that collapsed and explains that its removal opened up the waterfront, restored views of the Ferry Building, and enabled the current Embarcadero boulevard. Accept any version of the 'disaster improved the city' logic."
     }
+
   ]
 }

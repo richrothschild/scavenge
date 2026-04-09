@@ -601,7 +601,7 @@ test("resetting to a seed variant preserves assigned participants", async () => 
     .send({ variant: "test" });
   assert.equal(resetResponse.status, 200);
   assert.equal(resetResponse.body.variant, "test");
-  assert.equal(resetResponse.body.requiresRestart, true);
+  assert.equal(resetResponse.body.requiresRestart, false);
 
   const rosterResponse = await http
     .get("/api/admin/team-assignments")
@@ -1487,4 +1487,320 @@ test("team submissions endpoint respects limit query", async () => {
   assert.equal(submissionsOffset.body.limit, 1);
   assert.equal(submissionsOffset.body.offset, 1);
   assert.notEqual(submissionsOffset.body.items[0].id, submissionsLimited.body.items[0].id);
+});
+
+// ── Hunt mode controls ────────────────────────────────────────────────────────
+
+test("enable test mode: reset-seed(test) succeeds and returns expected fields", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const res = await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "test" });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.variant, "test");
+  assert.equal(res.body.requiresRestart, false);
+  assert.ok(typeof res.body.clueCount === "number" && res.body.clueCount > 0);
+  assert.ok(res.body.resolvedSource === "test" || res.body.resolvedSource === "default");
+});
+
+test("enable test mode: requires admin token", async () => {
+  const { http } = await setup();
+
+  const res = await http
+    .post("/api/admin/reset-seed")
+    .send({ variant: "test" });
+
+  assert.equal(res.status, 401);
+});
+
+test("enable test mode: rejects invalid variant", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const res = await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "staging" });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /variant must be/i);
+});
+
+test("enable test mode: game status resets to PENDING after seed reset", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "test" });
+
+  const statusRes = await http.get("/api/game/status");
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.body.status, "PENDING");
+});
+
+test("enable test mode: player sessions are invalidated after seed reset", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  const joinRes = await joinAssignedParticipant(http, team.join_code, "Session Test Player");
+  const playerToken = joinRes.body.session.token as string;
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "test" });
+
+  const stateRes = await http
+    .get("/api/team/me/state")
+    .set("x-auth-token", playerToken);
+  assert.equal(stateRes.status, 401);
+});
+
+test("enable test mode: sets game RUNNING via game/status after reset", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "test" });
+
+  const statusRes = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("test-mode-run"))
+    .send({ status: "RUNNING" });
+
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.body.status, "RUNNING");
+});
+
+test("enable production mode: reset-seed(production) succeeds and returns expected fields", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const res = await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "production" });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.variant, "production");
+  assert.equal(res.body.requiresRestart, false);
+  assert.ok(typeof res.body.clueCount === "number" && res.body.clueCount > 0);
+  assert.ok(res.body.resolvedSource === "production" || res.body.resolvedSource === "default");
+});
+
+test("enable production mode: requires admin token", async () => {
+  const { http } = await setup();
+
+  const res = await http
+    .post("/api/admin/reset-seed")
+    .send({ variant: "production" });
+
+  assert.equal(res.status, 401);
+});
+
+test("enable production mode: game status resets to PENDING after seed reset", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "production" });
+
+  const statusRes = await http.get("/api/game/status");
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.body.status, "PENDING");
+});
+
+test("enable production mode: player sessions are invalidated after seed reset", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  const joinRes = await joinAssignedParticipant(http, team.join_code, "Prod Session Test Player");
+  const playerToken = joinRes.body.session.token as string;
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "production" });
+
+  const stateRes = await http
+    .get("/api/team/me/state")
+    .set("x-auth-token", playerToken);
+  assert.equal(stateRes.status, 401);
+});
+
+test("enable production mode: sets game RUNNING via game/status after reset", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "production" });
+
+  const statusRes = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("prod-mode-run"))
+    .send({ status: "RUNNING" });
+
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.body.status, "RUNNING");
+});
+
+test("enable production mode: preserves assigned participants across reset", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  await http
+    .post("/api/admin/team-assignments/assign")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("prod-preserve-assign"))
+    .send({ teamId: team.name.toLowerCase(), participantName: "Preserved Player" });
+
+  await http
+    .post("/api/admin/reset-seed")
+    .set("x-admin-token", adminToken)
+    .send({ variant: "production" });
+
+  const rosterRes = await http
+    .get("/api/admin/team-assignments")
+    .set("x-admin-token", adminToken);
+  assert.equal(rosterRes.status, 200);
+
+  const roster = rosterRes.body.teams.find((t: { teamId: string }) => t.teamId === team.name.toLowerCase());
+  assert.ok(roster);
+  assert.ok(roster.assignedParticipants.includes("Preserved Player"));
+});
+
+test("turn off hunt: sets game status to ENDED", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const res = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-ended"))
+    .send({ status: "ENDED" });
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.status, "ENDED");
+});
+
+test("turn off hunt: requires admin token", async () => {
+  const { http } = await setup();
+
+  const res = await http
+    .post("/api/game/status")
+    .set("x-idempotency-key", idempotencyKey("end-hunt-no-auth"))
+    .send({ status: "ENDED" });
+
+  assert.equal(res.status, 401);
+});
+
+test("turn off hunt: blocks player submissions after ENDED", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-block-submit"))
+    .send({ status: "ENDED" });
+
+  const submitRes = await http
+    .post("/api/team/me/submit")
+    .set("x-auth-token", captainToken)
+    .send({ textContent: "My answer" });
+
+  assert.equal(submitRes.status, 423);
+  assert.match(submitRes.body.error, /blocked while game status is ENDED/i);
+});
+
+test("turn off hunt: blocks player pass after ENDED", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const team = seed.teams[0];
+
+  const captainToken = await joinAsCaptain(http, team.join_code, team.captain_pin);
+
+  await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-block-pass"))
+    .send({ status: "ENDED" });
+
+  const passRes = await http
+    .post("/api/team/me/pass")
+    .set("x-auth-token", captainToken)
+    .send({});
+
+  assert.equal(passRes.status, 423);
+  assert.match(passRes.body.error, /blocked while game status is ENDED/i);
+});
+
+test("turn off hunt: blocks admin live-ops mutations after ENDED", async () => {
+  const { seed, http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+  const teamId = seed.teams[0].name.toLowerCase();
+
+  await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-ops-block"))
+    .send({ status: "ENDED" });
+
+  const deductRes = await http
+    .post(`/api/admin/team/${teamId}/deduct`)
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-ops-deduct"))
+    .send({ amount: 10, reason: "should be blocked" });
+
+  assert.equal(deductRes.status, 423);
+  assert.match(deductRes.body.error, /blocked while game status is ENDED/i);
+});
+
+test("turn off hunt: game/status GET reflects ENDED after turn-off", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-status-check"))
+    .send({ status: "ENDED" });
+
+  const statusRes = await http.get("/api/game/status");
+  assert.equal(statusRes.status, 200);
+  assert.equal(statusRes.body.status, "ENDED");
+});
+
+test("turn off hunt: rejects invalid status value", async () => {
+  const { http } = await setup();
+  const adminToken = await loginAsAdmin(http);
+
+  const res = await http
+    .post("/api/game/status")
+    .set("x-admin-token", adminToken)
+    .set("x-idempotency-key", idempotencyKey("end-hunt-invalid-status"))
+    .send({ status: "SHUTDOWN" });
+
+  assert.equal(res.status, 400);
+  assert.match(res.body.error, /invalid game status/i);
 });

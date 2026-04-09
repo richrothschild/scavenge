@@ -135,12 +135,12 @@
     {
       "order_index": 9,
       "title": "Chosen Inconvenience",
-      "instructions": "This street is engineered for spectacle. This address is engineered for living. Stand at 1083 Lombard. Send a 15-second video explaining: one sacrifice, one advantage.",
+      "instructions": "You are standing in front of 1083 Lombard Street — the most photographed residential address in San Francisco. The daughter of a dictator lives here. She grew up in Sunnyvale. This is not a coincidence. It is widely understood that only people of truly exceptional origin are permitted to reside on streets of this caliber. Send a 15-second video explaining what it means to have great offspring — and why Sunnyvale keeps producing them.",
       "required_flag": false,
       "transport_mode": "WALK",
       "requires_scan": true,
       "submission_type": "VIDEO",
-      "ai_rubric": "PASS if 15-second video includes both one sacrifice and one advantage while at 1083 Lombard.",
+      "ai_rubric": "PASS if 15-second video is delivered at 1083 Lombard and references great offspring, Sunnyvale, or Grace.",
       "base_points": 120,
       "qr_public_id": "CLUE-009"
     },

@@ -73,6 +73,12 @@ export default function HomePage() {
           <span className="home-card-fun">For fun, not points</span>
         </button>
 
+        <button className="home-card" onClick={() => navigate("/expenses")} style={{ borderLeftColor: "#3b82f6" }}>
+          <span className="home-card-icon">💰</span>
+          <span className="home-card-title">Expenses</span>
+          <span className="home-card-desc">Track costs · Split the bill · Who owes what</span>
+        </button>
+
         <button className="home-card quiz-card" onClick={() => navigate("/quiz")}>
           <span className="home-card-icon">📸</span>
           <span className="home-card-title">Pop Culture Quiz</span>
