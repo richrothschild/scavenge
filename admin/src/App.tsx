@@ -1266,9 +1266,13 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Turn off the scavenger hunt? This sets the game to ENDED. Teams will no longer be able to submit answers."
-    );
+    const currentlyEnded = gameStatus?.status === "ENDED";
+    const nextStatus: GameStatus = currentlyEnded ? "RUNNING" : "ENDED";
+    const confirmMsg = currentlyEnded
+      ? "Turn the hunt back ON? This sets the game to RUNNING. Teams will be able to submit answers again."
+      : "Turn off the scavenger hunt? This sets the game to ENDED. Teams will no longer be able to submit answers.";
+
+    const confirmed = window.confirm(confirmMsg);
     if (!confirmed) return;
 
     setAdminEndHuntBusy(true);
@@ -1276,20 +1280,20 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
       const response = await fetch(`${apiBase}/game/status`, {
         method: "POST",
         headers: buildAdminMutationHeaders("game-status"),
-        body: JSON.stringify({ status: "ENDED" })
+        body: JSON.stringify({ status: nextStatus })
       });
 
       if (!response.ok) {
-        setStatusMessage(await parseError(response, "End hunt failed"));
+        setStatusMessage(await parseError(response, "Hunt status update failed"));
         return;
       }
 
       const payload = await response.json() as GameStatusPayload;
       setGameStatus(payload);
-      setStatusMessage("Hunt ended. All gameplay is now locked.");
+      setStatusMessage(currentlyEnded ? "Hunt is now RUNNING. Teams can submit again." : "Hunt ended. All gameplay is now locked.");
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error);
-      setStatusMessage(`End hunt failed: ${reason}`);
+      setStatusMessage(`Hunt status update failed: ${reason}`);
     } finally {
       setAdminEndHuntBusy(false);
     }
@@ -3067,9 +3071,9 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                   onClick={() => { void endHunt(); }}
                   disabled={adminStartTestBusy || adminStartProdBusy || adminEndHuntBusy}
                 >
-                  {adminEndHuntBusy ? "Ending…" : "🛑 Turn Off Hunt"}
+                  {adminEndHuntBusy ? "Updating…" : gameStatus?.status === "ENDED" ? "▶️ Turn Hunt Back On" : "🛑 Turn Off Hunt"}
                 </button>
-                <p className="hunt-mode-desc">Sets game to ENDED. All submissions are locked.</p>
+                <p className="hunt-mode-desc">{gameStatus?.status === "ENDED" ? "Sets game back to RUNNING. Teams can submit again." : "Sets game to ENDED. All submissions are locked."}</p>
               </div>
             </div>
 
