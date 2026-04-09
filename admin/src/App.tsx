@@ -2075,7 +2075,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 ) : (
                   <div className="empty-roster-note">No players are assigned to this team yet. Ask the Dictator to add you first.</div>
                 )}
-                {gameStatus?.testMode ? (
+                {gameStatus?.testMode && gameStatus?.status !== "ENDED" ? (
                   <div className="test-mode-banner">🧪 Test Mode — PIN skipped, everyone joins as captain</div>
                 ) : (
                   <>
