@@ -499,7 +499,7 @@ export class GameEngine {
     return route ?? this.clues;
   }
 
-  private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot, private readonly variant: SeedConfigVariant = "production") {
+  private constructor(private readonly seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, snapshot: RuntimeSnapshot, private variant: SeedConfigVariant = "production") {
     this.clues = [...seed.clues].sort((a, b) => a.order_index - b.order_index);
     this.routeClueMap = new Map((seed.routes ?? []).map((r) => [r.routeId, r.clues]));
     this.store = store;
@@ -1134,6 +1134,7 @@ export class GameEngine {
     // Update in-memory state to match the fresh snapshot so mutations work immediately
     // without requiring a server restart.
     this.gameStatus = freshSnapshot.gameStatus;
+    this.variant = variant;
 
     this.teamsById.clear();
     this.teamByJoinCode.clear();
