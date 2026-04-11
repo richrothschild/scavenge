@@ -769,6 +769,7 @@ export class GameEngine {
     if (!team) return null;
     const clues = this.teamClues(team);
     const currentClue = clues[team.currentClueIndex];
+    console.log(`[getTeamState] team=${teamId} routeId=${team.routeId} clueCount=${clues.length} clue[0]=${clues[0]?.title} variant=${this.variant}`);
     const eligibilityStatus = team.completedCount >= MIN_COMPLETED_FOR_ELIGIBILITY ? "ELIGIBLE" : "INELIGIBLE";
     return {
       teamId: team.teamId,

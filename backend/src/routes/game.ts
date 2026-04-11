@@ -722,6 +722,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     }
 
     const result = await gameEngine.resetToVariant(variant);
+    console.log(`[reset-seed] variant=${result.variant} source=${result.resolvedSource} clues=${result.clueCount}`);
     return res.status(200).json(result);
   });
 
