@@ -478,8 +478,8 @@ const createInitialSnapshot = (seed: SeedConfig): RuntimeSnapshot => {
 };
 
 export class GameEngine {
-  private readonly clues: SeedClue[];
-  private readonly routeClueMap: Map<string, SeedClue[]>;
+  private clues: SeedClue[];
+  private routeClueMap: Map<string, SeedClue[]>;
   private readonly store: RuntimeStateStore<RuntimeSnapshot>;
   private readonly teamsById = new Map<string, TeamState>();
   private readonly teamByJoinCode = new Map<string, TeamState>();
@@ -1142,6 +1142,8 @@ export class GameEngine {
     // without requiring a server restart.
     this.gameStatus = freshSnapshot.gameStatus;
     this.variant = variant;
+    this.clues = [...loaded.seed.clues].sort((a, b) => a.order_index - b.order_index);
+    this.routeClueMap = new Map((loaded.seed.routes ?? []).map((r) => [r.routeId, r.clues]));
 
     this.teamsById.clear();
     this.teamByJoinCode.clear();
