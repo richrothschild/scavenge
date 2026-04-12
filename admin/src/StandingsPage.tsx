@@ -135,17 +135,12 @@ export default function StandingsPage() {
     }
   }
 
-  // Build overall leaderboard from the 4 fixed teams using event points + any hunt engine scores
+  // Build overall leaderboard from the 4 fixed teams using event results as the sole source of truth
   const enriched = TEAMS.map(suit => {
     const teamId = suit.toLowerCase();
     const teamInfo = teams.find(t => t.teamId.toLowerCase() === teamId);
     const huntEntry = leaderboard.find(lb => lb.teamId.toLowerCase() === teamId);
-    const huntPoints = huntEntry?.scoreTotal ?? 0;
-    const evtPoints = eventPointsByTeam[teamId] ?? 0;
-    // Use event points as the source of truth; add any hunt-only points not already in evtPoints
-    // (hunt engine score may include event bonuses already if teams joined — avoid double-counting
-    //  by using event points directly from events-store which is the authoritative record)
-    const scoreTotal = evtPoints + (huntEntry ? Math.max(0, huntPoints - evtPoints) : 0);
+    const scoreTotal = eventPointsByTeam[teamId] ?? 0;
     return {
       teamId,
       teamName: teamInfo?.teamName ?? (suit.charAt(0) + suit.slice(1).toLowerCase()),

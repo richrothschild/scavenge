@@ -20,6 +20,7 @@ COPY --from=build /app/backend/package.json backend/package.json
 COPY --from=build /app/backend/dist backend/dist
 COPY --from=build /app/seed-config*.json ./
 COPY --from=build /app/events-seed.json ./
+COPY --from=build /app/backend/events-store.json ./events-store.json
 COPY --from=build /app/packing-seed.json ./
 
 RUN npm ci --omit=dev --workspace=backend

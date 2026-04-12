@@ -45,7 +45,11 @@
     "firstPlaceBonus": 10,
     "secondPlaceBonus": 5,
     "thirdPlaceBonus": 2,
-    "results": []
+    "results": [
+      { "teamId": "spades", "place": 1, "pointsAwarded": 10 },
+      { "teamId": "hearts", "place": 2, "pointsAwarded": 5 },
+      { "teamId": "diamonds", "place": 3, "pointsAwarded": 2 }
+    ]
   },
   {
     "id": "ev-thu-03",
@@ -93,7 +97,11 @@
     "firstPlaceBonus": 10,
     "secondPlaceBonus": 5,
     "thirdPlaceBonus": 2,
-    "results": []
+    "results": [
+      { "teamId": "diamonds", "place": 1, "pointsAwarded": 20 },
+      { "teamId": "hearts", "place": 2, "pointsAwarded": 10 },
+      { "teamId": "spades", "place": 3, "pointsAwarded": 5 }
+    ]
   },
   {
     "id": "ev-fri-01",
@@ -141,7 +149,11 @@
     "firstPlaceBonus": 20,
     "secondPlaceBonus": 10,
     "thirdPlaceBonus": 5,
-    "results": []
+    "results": [
+      { "teamId": "diamonds", "place": 1, "pointsAwarded": 20 },
+      { "teamId": "clubs", "place": 2, "pointsAwarded": 10 },
+      { "teamId": "hearts", "place": 3, "pointsAwarded": 5 }
+    ]
   },
   {
     "id": "ev-fri-04",
@@ -205,7 +217,10 @@
     "firstPlaceBonus": 20,
     "secondPlaceBonus": 10,
     "thirdPlaceBonus": 5,
-    "results": []
+    "results": [
+      { "teamId": "hearts", "place": 1, "pointsAwarded": 15 },
+      { "teamId": "diamonds", "place": 1, "pointsAwarded": 15 }
+    ]
   },
   {
     "id": "ev-sat-01",
@@ -253,7 +268,11 @@
     "firstPlaceBonus": 20,
     "secondPlaceBonus": 10,
     "thirdPlaceBonus": 5,
-    "results": []
+    "results": [
+      { "teamId": "hearts", "place": 1, "pointsAwarded": 20 },
+      { "teamId": "clubs", "place": 2, "pointsAwarded": 10 },
+      { "teamId": "diamonds", "place": 3, "pointsAwarded": 5 }
+    ]
   },
   {
     "id": "ev-sat-04",
@@ -285,7 +304,11 @@
     "firstPlaceBonus": 20,
     "secondPlaceBonus": 10,
     "thirdPlaceBonus": 5,
-    "results": []
+    "results": [
+      { "teamId": "hearts", "place": 1, "pointsAwarded": 20 },
+      { "teamId": "diamonds", "place": 2, "pointsAwarded": 10 },
+      { "teamId": "clubs", "place": 3, "pointsAwarded": 5 }
+    ]
   },
   {
     "id": "ev-sun-01",
