@@ -127,7 +127,7 @@ export default function StandingsPage() {
 
   const suitKey = (teamId: string) => teamId.toUpperCase().split("-")[0] ?? teamId.toUpperCase();
 
-  // Per-team event points from event results
+  // Per-team event points from event results (authoritative — sourced from events-store)
   const eventPointsByTeam = TEAMS.reduce<Record<string, number>>((acc, t) => { acc[t.toLowerCase()] = 0; return acc; }, {});
   for (const ev of events) {
     for (const r of ev.results) {
@@ -135,21 +135,29 @@ export default function StandingsPage() {
     }
   }
 
-  // Overall leaderboard = hunt points (scoreTotal) already includes event points awarded via gameEngine
-  const enriched = leaderboard
-    .map(lb => {
-      const teamInfo = teams.find(t => t.teamId.toLowerCase() === lb.teamId.toLowerCase());
-      const suit = suitKey(lb.teamId);
-      return {
-        ...lb,
-        suit,
-        color: SUIT_COLORS[suit] ?? "#94a3b8",
-        icon: SUIT_ICONS[suit] ?? "★",
-        captain: teamInfo?.captainName ?? "—",
-        members: teamInfo?.assignedParticipants ?? [],
-      };
-    })
-    .sort((a, b) => b.scoreTotal - a.scoreTotal);
+  // Build overall leaderboard from the 4 fixed teams using event points + any hunt engine scores
+  const enriched = TEAMS.map(suit => {
+    const teamId = suit.toLowerCase();
+    const teamInfo = teams.find(t => t.teamId.toLowerCase() === teamId);
+    const huntEntry = leaderboard.find(lb => lb.teamId.toLowerCase() === teamId);
+    const huntPoints = huntEntry?.scoreTotal ?? 0;
+    const evtPoints = eventPointsByTeam[teamId] ?? 0;
+    // Use event points as the source of truth; add any hunt-only points not already in evtPoints
+    // (hunt engine score may include event bonuses already if teams joined — avoid double-counting
+    //  by using event points directly from events-store which is the authoritative record)
+    const scoreTotal = evtPoints + (huntEntry ? Math.max(0, huntPoints - evtPoints) : 0);
+    return {
+      teamId,
+      teamName: teamInfo?.teamName ?? (suit.charAt(0) + suit.slice(1).toLowerCase()),
+      scoreTotal,
+      currentClueIndex: huntEntry?.currentClueIndex ?? 0,
+      suit,
+      color: SUIT_COLORS[suit] ?? "#94a3b8",
+      icon: SUIT_ICONS[suit] ?? "★",
+      captain: teamInfo?.captainName ?? "—",
+      members: teamInfo?.assignedParticipants ?? [],
+    };
+  }).sort((a, b) => b.scoreTotal - a.scoreTotal);
 
   // Event-by-event breakdown per team
   const teamEventBreakdown = (teamId: string) =>
