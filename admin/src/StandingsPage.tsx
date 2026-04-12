@@ -68,7 +68,7 @@ export default function StandingsPage() {
         fetch(`${apiBase}/join/options`),
         fetch(`${apiBase}/events`),
       ]);
-      if (lbRes.ok) { const d = await lbRes.json(); setLeaderboard(d.leaderboard ?? []); }
+      if (lbRes.ok) { const d = await lbRes.json(); setLeaderboard(d.teams ?? d.leaderboard ?? []); }
       if (teamsRes.ok) { const d = await teamsRes.json(); setTeams(d.teams ?? []); }
       if (eventsRes.ok) {
         const d = await eventsRes.json();
