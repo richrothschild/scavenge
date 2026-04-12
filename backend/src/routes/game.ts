@@ -1058,7 +1058,7 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const idx = eventsStore.findIndex((e) => e.id === req.params.id);
     if (idx === -1) return res.status(404).json({ error: "Event not found." });
     const ev = eventsStore[idx];
-    const incoming: Array<{ teamId: unknown; place: unknown }> = Array.isArray(req.body?.results) ? req.body.results : [];
+    const incoming: Array<{ teamId: unknown; place: unknown; pointsAwarded?: unknown }> = Array.isArray(req.body?.results) ? req.body.results : [];
 
     // Revoke previously awarded event points from this event (if any)
     for (const prev of ev.results) {
@@ -1071,13 +1071,21 @@ export const gameRouter = (gameEngine: GameEngine, aiJudge: AIJudgeProvider) => 
     const errors: string[] = [];
     for (const entry of incoming) {
       const teamId = String(entry.teamId ?? "").trim().toLowerCase();
-      const place = Number(entry.place);
       if (!teamId) { errors.push("Missing teamId"); continue; }
-      if (![1, 2, 3].includes(place)) { errors.push(`Invalid place ${place} for ${teamId}`); continue; }
-      const pts = calcPoints(ev, place as 1 | 2 | 3);
-      newResults.push({ teamId, place: place as 1 | 2 | 3, pointsAwarded: pts });
+      // Accept custom pointsAwarded override, otherwise derive from place
+      let pts: number;
+      let place: 1 | 2 | 3 = 1;
+      if (entry.pointsAwarded !== undefined && Number.isFinite(Number(entry.pointsAwarded))) {
+        pts = Math.max(0, Math.round(Number(entry.pointsAwarded)));
+        place = (([1, 2, 3].includes(Number(entry.place)) ? Number(entry.place) : 1) as 1 | 2 | 3);
+      } else {
+        place = (Number(entry.place) as 1 | 2 | 3);
+        if (![1, 2, 3].includes(place)) { errors.push(`Invalid place ${place} for ${teamId}`); continue; }
+        pts = calcPoints(ev, place);
+      }
+      newResults.push({ teamId, place, pointsAwarded: pts });
       if (pts > 0) {
-        const r = await gameEngine.awardTeamPoints(teamId, pts, `Event result: ${ev.title} — place ${place}`);
+        const r = await gameEngine.awardTeamPoints(teamId, pts, `Event result: ${ev.title} — ${pts}pts`);
         if (r && "error" in r) errors.push(`${teamId}: ${r.error}`);
       }
     }

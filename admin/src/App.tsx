@@ -242,7 +242,8 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     basePoints: number; weight: number; results: EventResultEntry[];
   };
   const [eventsList, setEventsList] = useState<EventItem[]>([]);
-  const [eventResults, setEventResults] = useState<Record<string, { p1: string; p2: string; p3: string }>>({});
+  // Per-event, per-team custom point values: { [eventId]: { spades: "15", hearts: "0", ... } }
+  const [eventResults, setEventResults] = useState<Record<string, Record<string, string>>>({});
   const [eventResultMsg, setEventResultMsg] = useState<Record<string, string>>({});
   const [eventResultBusy, setEventResultBusy] = useState<Record<string, boolean>>({});
   const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
@@ -1347,6 +1348,8 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     setSecurityEventsOffset(String(offset));
   };
 
+  const EVENT_TEAMS = ["spades", "hearts", "diamonds", "clubs"];
+
   const fetchEventsList = async () => {
     try {
       const res = await fetch(`${apiBase}/events`);
@@ -1354,14 +1357,16 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
         const data = await res.json();
         const scored = (data.events ?? []).filter((e: EventItem) => e.firstPlaceBonus > 0 || e.secondPlaceBonus > 0 || e.thirdPlaceBonus > 0);
         setEventsList(scored);
-        const init: Record<string, { p1: string; p2: string; p3: string }> = {};
+        const init: Record<string, Record<string, string>> = {};
         for (const ev of scored as EventItem[]) {
-          const r1 = ev.results.find(r => r.place === 1)?.teamId ?? "";
-          const r2 = ev.results.find(r => r.place === 2)?.teamId ?? "";
-          const r3 = ev.results.find(r => r.place === 3)?.teamId ?? "";
-          init[ev.id] = { p1: r1, p2: r2, p3: r3 };
+          const teamPts: Record<string, string> = {};
+          for (const t of EVENT_TEAMS) {
+            const r = ev.results.find(r => r.teamId === t);
+            teamPts[t] = r ? String(r.pointsAwarded) : "0";
+          }
+          init[ev.id] = teamPts;
         }
-        setEventResults(prev => ({ ...init, ...prev }));
+        setEventResults(init);
       }
     } catch { /* ignore */ }
   };
@@ -1370,12 +1375,18 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     setEventResultBusy(b => ({ ...b, [eventId]: true }));
     setEventResultMsg(m => ({ ...m, [eventId]: "" }));
     try {
-      const sel = eventResults[eventId] ?? { p1: "", p2: "", p3: "" };
-      const results = [
-        sel.p1 ? { teamId: sel.p1, place: 1 } : null,
-        sel.p2 ? { teamId: sel.p2, place: 2 } : null,
-        sel.p3 ? { teamId: sel.p3, place: 3 } : null,
-      ].filter(Boolean);
+      const teamPts = eventResults[eventId] ?? {};
+      // Sort by points descending to assign places
+      const sorted = EVENT_TEAMS
+        .map(t => ({ teamId: t, pts: Math.max(0, parseInt(teamPts[t] ?? "0", 10) || 0) }))
+        .filter(t => t.pts > 0)
+        .sort((a, b) => b.pts - a.pts);
+      // Assign place by rank (ties share the same place)
+      let currentPlace = 1;
+      const results = sorted.map((entry, i) => {
+        if (i > 0 && entry.pts < sorted[i - 1]!.pts) currentPlace = i + 1;
+        return { teamId: entry.teamId, place: Math.min(currentPlace, 3) as 1|2|3, pointsAwarded: entry.pts };
+      });
       const res = await fetch(`${apiBase}/admin/events/${eventId}/results`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
@@ -1383,7 +1394,8 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
       });
       const data = await res.json();
       if (res.ok) {
-        setEventResultMsg(m => ({ ...m, [eventId]: "✓ Saved" }));
+        const total = results.reduce((s, r) => s + r.pointsAwarded, 0);
+        setEventResultMsg(m => ({ ...m, [eventId]: `✓ Saved — ${total}pts awarded` }));
         await fetchEventsList();
         await fetchLeaderboard();
       } else {
@@ -3198,38 +3210,26 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
             <button onClick={() => { void fetchEventsList(); }}>Refresh Events</button>
             {eventsList.length === 0 && <p style={{ color: "#64748b", fontSize: "0.85rem" }}>No scored events found.</p>}
             {eventsList.map((ev) => {
-              const sel = eventResults[ev.id] ?? { p1: "", p2: "", p3: "" };
-              const teamOpts = [
-                { value: "", label: "—" },
-                { value: "spades", label: "♠ Spades" },
-                { value: "hearts", label: "♥ Hearts" },
-                { value: "diamonds", label: "♦ Diamonds" },
-                { value: "clubs", label: "♣ Clubs" },
-              ];
-              const pts = (place: 1|2|3) => {
-                const bonus = place === 1 ? ev.firstPlaceBonus : place === 2 ? ev.secondPlaceBonus : ev.thirdPlaceBonus;
-                return Math.round(ev.basePoints * ev.weight + bonus);
-              };
+              const teamPts = eventResults[ev.id] ?? {};
+              const TEAM_LABELS: Record<string, string> = { spades: "♠ Spades", hearts: "♥ Hearts", diamonds: "♦ Diamonds", clubs: "♣ Clubs" };
               return (
                 <div key={ev.id} style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1e293b" }}>
-                  <p style={{ fontWeight: 700, color: "#f1f5f9", marginBottom: "0.5rem" }}>{ev.title} <span style={{ color: "#64748b", fontWeight: 400, fontSize: "0.8rem" }}>{ev.date}</span></p>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    {([1, 2, 3] as const).map(place => {
-                      const key = place === 1 ? "p1" : place === 2 ? "p2" : "p3";
-                      const label = place === 1 ? "🥇" : place === 2 ? "🥈" : "🥉";
-                      return (
-                        <div key={place}>
-                          <label style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{label} +{pts(place)}pts</label>
-                          <select
-                            value={sel[key]}
-                            onChange={e => setEventResults(r => ({ ...r, [ev.id]: { ...r[ev.id] ?? { p1: "", p2: "", p3: "" }, [key]: e.target.value } }))}
-                            style={{ width: "100%", background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0", borderRadius: "4px", padding: "0.3rem" }}
-                          >
-                            {teamOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                          </select>
-                        </div>
-                      );
-                    })}
+                  <p style={{ fontWeight: 700, color: "#f1f5f9", marginBottom: "0.5rem" }}>
+                    {ev.title} <span style={{ color: "#64748b", fontWeight: 400, fontSize: "0.8rem" }}>{ev.date}</span>
+                  </p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    {EVENT_TEAMS.map(t => (
+                      <div key={t}>
+                        <label style={{ fontSize: "0.72rem", color: "#94a3b8", display: "block", marginBottom: "0.2rem" }}>{TEAM_LABELS[t]}</label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={teamPts[t] ?? "0"}
+                          onChange={e => setEventResults(r => ({ ...r, [ev.id]: { ...r[ev.id] ?? {}, [t]: e.target.value } }))}
+                          style={{ width: "100%", background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0", borderRadius: "4px", padding: "0.3rem", boxSizing: "border-box" as const }}
+                        />
+                      </div>
+                    ))}
                   </div>
                   <button
                     onClick={() => { void submitEventResult(ev.id); }}
