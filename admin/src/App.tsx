@@ -233,6 +233,18 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   const [adminStartProdBusy, setAdminStartProdBusy] = useState(false);
   const [adminEndHuntBusy, setAdminEndHuntBusy] = useState(false);
   const [joinLockBusy, setJoinLockBusy] = useState(false);
+
+  // Event results
+  type EventResultEntry = { teamId: string; place: 1 | 2 | 3; pointsAwarded: number };
+  type EventItem = {
+    id: string; title: string; date: string; time: string;
+    firstPlaceBonus: number; secondPlaceBonus: number; thirdPlaceBonus: number;
+    basePoints: number; weight: number; results: EventResultEntry[];
+  };
+  const [eventsList, setEventsList] = useState<EventItem[]>([]);
+  const [eventResults, setEventResults] = useState<Record<string, { p1: string; p2: string; p3: string }>>({});
+  const [eventResultMsg, setEventResultMsg] = useState<Record<string, string>>({});
+  const [eventResultBusy, setEventResultBusy] = useState<Record<string, boolean>>({});
   const [teamAssignments, setTeamAssignments] = useState<AdminTeamAssignment[]>([]);
   const [assignmentTeamId, setAssignmentTeamId] = useState("spades");
   const [assignmentName, setAssignmentName] = useState("");
@@ -1335,6 +1347,55 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
     setSecurityEventsOffset(String(offset));
   };
 
+  const fetchEventsList = async () => {
+    try {
+      const res = await fetch(`${apiBase}/events`);
+      if (res.ok) {
+        const data = await res.json();
+        const scored = (data.events ?? []).filter((e: EventItem) => e.firstPlaceBonus > 0 || e.secondPlaceBonus > 0 || e.thirdPlaceBonus > 0);
+        setEventsList(scored);
+        const init: Record<string, { p1: string; p2: string; p3: string }> = {};
+        for (const ev of scored as EventItem[]) {
+          const r1 = ev.results.find(r => r.place === 1)?.teamId ?? "";
+          const r2 = ev.results.find(r => r.place === 2)?.teamId ?? "";
+          const r3 = ev.results.find(r => r.place === 3)?.teamId ?? "";
+          init[ev.id] = { p1: r1, p2: r2, p3: r3 };
+        }
+        setEventResults(prev => ({ ...init, ...prev }));
+      }
+    } catch { /* ignore */ }
+  };
+
+  const submitEventResult = async (eventId: string) => {
+    setEventResultBusy(b => ({ ...b, [eventId]: true }));
+    setEventResultMsg(m => ({ ...m, [eventId]: "" }));
+    try {
+      const sel = eventResults[eventId] ?? { p1: "", p2: "", p3: "" };
+      const results = [
+        sel.p1 ? { teamId: sel.p1, place: 1 } : null,
+        sel.p2 ? { teamId: sel.p2, place: 2 } : null,
+        sel.p3 ? { teamId: sel.p3, place: 3 } : null,
+      ].filter(Boolean);
+      const res = await fetch(`${apiBase}/admin/events/${eventId}/results`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": adminToken },
+        body: JSON.stringify({ results }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEventResultMsg(m => ({ ...m, [eventId]: "✓ Saved" }));
+        await fetchEventsList();
+        await fetchLeaderboard();
+      } else {
+        setEventResultMsg(m => ({ ...m, [eventId]: data.error ?? "Error saving" }));
+      }
+    } catch {
+      setEventResultMsg(m => ({ ...m, [eventId]: "Network error" }));
+    } finally {
+      setEventResultBusy(b => ({ ...b, [eventId]: false }));
+    }
+  };
+
   const fetchLeaderboard = async () => {
     const endpoint = `${apiBase}/leaderboard`;
     let response: Response;
@@ -1618,7 +1679,7 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
   };
 
   const loadAdminDashboard = async () => {
-    await Promise.all([fetchReviewQueue(), fetchSecurityEvents(), fetchAuditLogs(), fetchLeaderboard(), fetchGameStatus()]);
+    await Promise.all([fetchReviewQueue(), fetchSecurityEvents(), fetchAuditLogs(), fetchLeaderboard(), fetchGameStatus(), fetchEventsList()]);
     setStatusMessage("Admin dashboard refreshed");
   };
 
@@ -3130,6 +3191,61 @@ function App({ forceMode }: { forceMode?: "player" | "admin" } = {}) {
                 ⏮ Reset ALL teams to Clue 1
               </button>
             </div>
+          </div>
+
+          <h3>Event Results</h3>
+          <div className="panel">
+            <button onClick={() => { void fetchEventsList(); }}>Refresh Events</button>
+            {eventsList.length === 0 && <p style={{ color: "#64748b", fontSize: "0.85rem" }}>No scored events found.</p>}
+            {eventsList.map((ev) => {
+              const sel = eventResults[ev.id] ?? { p1: "", p2: "", p3: "" };
+              const teamOpts = [
+                { value: "", label: "—" },
+                { value: "spades", label: "♠ Spades" },
+                { value: "hearts", label: "♥ Hearts" },
+                { value: "diamonds", label: "♦ Diamonds" },
+                { value: "clubs", label: "♣ Clubs" },
+              ];
+              const pts = (place: 1|2|3) => {
+                const bonus = place === 1 ? ev.firstPlaceBonus : place === 2 ? ev.secondPlaceBonus : ev.thirdPlaceBonus;
+                return Math.round(ev.basePoints * ev.weight + bonus);
+              };
+              return (
+                <div key={ev.id} style={{ marginBottom: "1.25rem", paddingBottom: "1rem", borderBottom: "1px solid #1e293b" }}>
+                  <p style={{ fontWeight: 700, color: "#f1f5f9", marginBottom: "0.5rem" }}>{ev.title} <span style={{ color: "#64748b", fontWeight: 400, fontSize: "0.8rem" }}>{ev.date}</span></p>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    {([1, 2, 3] as const).map(place => {
+                      const key = place === 1 ? "p1" : place === 2 ? "p2" : "p3";
+                      const label = place === 1 ? "🥇" : place === 2 ? "🥈" : "🥉";
+                      return (
+                        <div key={place}>
+                          <label style={{ fontSize: "0.75rem", color: "#94a3b8" }}>{label} +{pts(place)}pts</label>
+                          <select
+                            value={sel[key]}
+                            onChange={e => setEventResults(r => ({ ...r, [ev.id]: { ...r[ev.id] ?? { p1: "", p2: "", p3: "" }, [key]: e.target.value } }))}
+                            style={{ width: "100%", background: "#0f172a", border: "1px solid #334155", color: "#e2e8f0", borderRadius: "4px", padding: "0.3rem" }}
+                          >
+                            {teamOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                          </select>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => { void submitEventResult(ev.id); }}
+                    disabled={eventResultBusy[ev.id]}
+                    style={{ background: "#3b82f6", border: "none", borderRadius: "4px", color: "#fff", padding: "0.3rem 0.8rem", cursor: "pointer", fontSize: "0.85rem" }}
+                  >
+                    {eventResultBusy[ev.id] ? "Saving…" : "Save Results"}
+                  </button>
+                  {eventResultMsg[ev.id] && (
+                    <span style={{ marginLeft: "0.75rem", fontSize: "0.8rem", color: eventResultMsg[ev.id]?.startsWith("✓") ? "#4ade80" : "#f87171" }}>
+                      {eventResultMsg[ev.id]}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
 
           <h3>Review Queue</h3>
