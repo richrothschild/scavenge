@@ -189,6 +189,7 @@ export type RuntimeSnapshot = {
   reviewQueue: ReviewQueueItem[];
   securityEvents: SecurityEvent[];
   auditLogs: AuditLog[];
+  activeVariant?: SeedConfigVariant;
 };
 
 const MAX_OPTIONAL_SKIPS = 5;
@@ -536,7 +537,21 @@ export class GameEngine {
 
   static async create(seed: SeedConfig, store: RuntimeStateStore<RuntimeSnapshot>, variant: SeedConfigVariant = "production") {
     const snapshot = (await store.load()) ?? createInitialSnapshot(seed);
-    const engine = new GameEngine(seed, store, snapshot, variant);
+
+    // If the persisted snapshot was saved under a different variant, re-load the correct seed
+    const effectiveVariant = snapshot.activeVariant ?? variant;
+    let effectiveSeed = seed;
+    if (effectiveVariant !== variant) {
+      try {
+        const loaded = loadSeedConfigVariant(effectiveVariant);
+        effectiveSeed = loaded.seed;
+        console.log(`[GameEngine.create] Restoring persisted variant=${effectiveVariant} (env says ${variant}), source=${loaded.resolvedSource}, clues=${loaded.seed.clues.length}`);
+      } catch (e) {
+        console.warn(`[GameEngine.create] Failed to load persisted variant=${effectiveVariant}, falling back to env variant=${variant}:`, e);
+      }
+    }
+
+    const engine = new GameEngine(effectiveSeed, store, snapshot, effectiveVariant);
     await engine.persist();
     return engine;
   }
@@ -549,7 +564,8 @@ export class GameEngine {
       submissions: this.submissions,
       reviewQueue: this.reviewQueue,
       securityEvents: this.securityEvents,
-      auditLogs: this.auditLogs
+      auditLogs: this.auditLogs,
+      activeVariant: this.variant
     });
   }
 
@@ -1137,7 +1153,7 @@ export class GameEngine {
       }
     }
 
-    await this.store.save(freshSnapshot);
+    await this.store.save({ ...freshSnapshot, activeVariant: variant });
 
     // Update in-memory state to match the fresh snapshot so mutations work immediately
     // without requiring a server restart.
